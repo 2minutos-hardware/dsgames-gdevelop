@@ -1334,9 +1334,7 @@ const MainFrame = (props: Props): React.MixedElement => {
         }
       }
 
-      console.info('[DSGAMES] loadFromProject: before closeProject');
       await closeProject();
-      console.info('[DSGAMES] loadFromProject: after closeProject');
 
       // Make sure that the ResourcesLoader cache is emptied, so that
       // the URL to a resource with a name in the old project is not re-used
@@ -1364,13 +1362,11 @@ const MainFrame = (props: Props): React.MixedElement => {
       // sees the pending promise as soon as the CLI useEffect fires.
       loadProjectSettings(updatedFileMetadata);
 
-      console.info('[DSGAMES] loadFromProject: before setState');
       const state = await setState(state => ({
         ...state,
         currentProject: project,
         currentFileMetadata: updatedFileMetadata,
       }));
-      console.info('[DSGAMES] loadFromProject: after setState');
 
       if (updatedFileMetadata) {
         const storageProvider = getStorageProvider();
@@ -5489,91 +5485,102 @@ const MainFrame = (props: Props): React.MixedElement => {
   React.useEffect(
     () => {
       // DSGAMES: skip GDevelop's own home/catalog page and go straight
-      // into a new blank project in the scene editor.
-      console.info('[DSGAMES] calling createEmptyProject...');
-      createEmptyProject({
-        storageProvider: emptyStorageProvider,
-        saveAsLocation: null,
-        creationSource: 'default',
-      })
-        .then(result => {
-          console.info('[DSGAMES] createEmptyProject resolved', result);
-        })
-        .catch(error => {
-          console.error('[DSGAMES] createEmptyProject rejected', error);
-        });
-      GD_STARTUP_TIMES.push(['MainFrameComponentDidMount', performance.now()]);
-      _loadExtensions()
-        .then(() =>
-          // Enable the GDJS development watcher *after* the extensions are loaded,
-          // to avoid the watcher interfering with the extension loading (by updating GDJS,
-          // which could lead in the extension loading failing for some extensions as file
-          // are removed/copied).
-          setState(state => ({
-            ...state,
-            gdjsDevelopmentWatcherEnabled: true,
-          }))
-        )
-        .then(async state => {
-          GD_STARTUP_TIMES.push([
-            'MainFrameComponentDidMountFinished',
-            performance.now(),
-          ]);
+      // into a new blank project in the scene editor. This must fully
+      // resolve (it calls setState via the shared useStateWithCallback
+      // instance, through loadFromProject) *before* the extensions-loaded
+      // handler below calls setState on that same instance again — that
+      // hook only tracks one pending promise at a time, so two overlapping
+      // calls orphan the first one's promise forever (a permanent hang).
+      (async () => {
+        try {
+          await createEmptyProject({
+            storageProvider: emptyStorageProvider,
+            saveAsLocation: null,
+            creationSource: 'default',
+          });
+        } catch (error) {
+          console.error(
+            '[DSGAMES] Failed to create the initial empty project',
+            error
+          );
+        }
 
-          console.info('Startup times:', getStartupTimesSummary());
+        GD_STARTUP_TIMES.push([
+          'MainFrameComponentDidMount',
+          performance.now(),
+        ]);
+        _loadExtensions()
+          .then(() =>
+            // Enable the GDJS development watcher *after* the extensions are loaded,
+            // to avoid the watcher interfering with the extension loading (by updating GDJS,
+            // which could lead in the extension loading failing for some extensions as file
+            // are removed/copied).
+            setState(state => ({
+              ...state,
+              gdjsDevelopmentWatcherEnabled: true,
+            }))
+          )
+          .then(async state => {
+            GD_STARTUP_TIMES.push([
+              'MainFrameComponentDidMountFinished',
+              performance.now(),
+            ]);
 
-          const {
-            getAutoOpenMostRecentProject,
-            getRecentProjectFiles,
-            hadProjectOpenedDuringLastSession,
-          } = preferences;
+            console.info('Startup times:', getStartupTimesSummary());
 
-          if (initialFileMetadataToOpen) {
-            // Open the initial file metadata (i.e: the file that was passed
-            // as argument and recognized by a storage provider). Note that the storage
-            // provider is assumed to be already set to the proper one.
-            const storageProviderOperations = getStorageProviderOperations();
-            const proceed = await ensureInteractionHappened(
-              storageProviderOperations
-            );
-            if (proceed) openInitialFileMetadata();
-          } else if (initialExampleSlugToOpen) {
-            await fetchAndOpenNewProjectSetupDialogForExample(
-              initialExampleSlugToOpen
-            );
-          } else if (
-            getAutoOpenMostRecentProject() &&
-            hadProjectOpenedDuringLastSession() &&
-            getRecentProjectFiles()[0]
-          ) {
-            // Re-open the last opened project, if any and if asked to.
-            const fileMetadataAndStorageProviderName = getRecentProjectFiles()[0];
-            const storageProvider = findStorageProviderFor(
-              i18n,
-              props.storageProviders,
-              fileMetadataAndStorageProviderName
-            );
-            if (!storageProvider) return;
+            const {
+              getAutoOpenMostRecentProject,
+              getRecentProjectFiles,
+              hadProjectOpenedDuringLastSession,
+            } = preferences;
 
-            const storageProviderOperations = getStorageProviderOperations(
-              storageProvider
-            );
-            const proceed = await ensureInteractionHappened(
-              storageProviderOperations
-            );
-            if (proceed)
-              openFromFileMetadataWithStorageProvider(
+            if (initialFileMetadataToOpen) {
+              // Open the initial file metadata (i.e: the file that was passed
+              // as argument and recognized by a storage provider). Note that the storage
+              // provider is assumed to be already set to the proper one.
+              const storageProviderOperations = getStorageProviderOperations();
+              const proceed = await ensureInteractionHappened(
+                storageProviderOperations
+              );
+              if (proceed) openInitialFileMetadata();
+            } else if (initialExampleSlugToOpen) {
+              await fetchAndOpenNewProjectSetupDialogForExample(
+                initialExampleSlugToOpen
+              );
+            } else if (
+              getAutoOpenMostRecentProject() &&
+              hadProjectOpenedDuringLastSession() &&
+              getRecentProjectFiles()[0]
+            ) {
+              // Re-open the last opened project, if any and if asked to.
+              const fileMetadataAndStorageProviderName = getRecentProjectFiles()[0];
+              const storageProvider = findStorageProviderFor(
+                i18n,
+                props.storageProviders,
                 fileMetadataAndStorageProviderName
               );
-          }
+              if (!storageProvider) return;
 
-          configureNewProjectActionsForProfile({
-            fetchAndOpenNewProjectSetupDialogForExample,
+              const storageProviderOperations = getStorageProviderOperations(
+                storageProvider
+              );
+              const proceed = await ensureInteractionHappened(
+                storageProviderOperations
+              );
+              if (proceed)
+                openFromFileMetadataWithStorageProvider(
+                  fileMetadataAndStorageProviderName
+                );
+            }
+
+            configureNewProjectActionsForProfile({
+              fetchAndOpenNewProjectSetupDialogForExample,
+            });
+          })
+          .catch(() => {
+            /* Ignore errors */
           });
-        })
-        .catch(() => {
-          /* Ignore errors */
-        });
+      })();
     },
     // We want to run this effect only when the component did mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
