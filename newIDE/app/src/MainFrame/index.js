@@ -1334,7 +1334,9 @@ const MainFrame = (props: Props): React.MixedElement => {
         }
       }
 
+      console.info('[DSGAMES] loadFromProject: before closeProject');
       await closeProject();
+      console.info('[DSGAMES] loadFromProject: after closeProject');
 
       // Make sure that the ResourcesLoader cache is emptied, so that
       // the URL to a resource with a name in the old project is not re-used
@@ -1362,11 +1364,13 @@ const MainFrame = (props: Props): React.MixedElement => {
       // sees the pending promise as soon as the CLI useEffect fires.
       loadProjectSettings(updatedFileMetadata);
 
+      console.info('[DSGAMES] loadFromProject: before setState');
       const state = await setState(state => ({
         ...state,
         currentProject: project,
         currentFileMetadata: updatedFileMetadata,
       }));
+      console.info('[DSGAMES] loadFromProject: after setState');
 
       if (updatedFileMetadata) {
         const storageProvider = getStorageProvider();
@@ -5486,11 +5490,18 @@ const MainFrame = (props: Props): React.MixedElement => {
     () => {
       // DSGAMES: skip GDevelop's own home/catalog page and go straight
       // into a new blank project in the scene editor.
+      console.info('[DSGAMES] calling createEmptyProject...');
       createEmptyProject({
         storageProvider: emptyStorageProvider,
         saveAsLocation: null,
         creationSource: 'default',
-      });
+      })
+        .then(result => {
+          console.info('[DSGAMES] createEmptyProject resolved', result);
+        })
+        .catch(error => {
+          console.error('[DSGAMES] createEmptyProject rejected', error);
+        });
       GD_STARTUP_TIMES.push(['MainFrameComponentDidMount', performance.now()]);
       _loadExtensions()
         .then(() =>
