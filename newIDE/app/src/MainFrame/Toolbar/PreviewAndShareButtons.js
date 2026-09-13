@@ -6,10 +6,8 @@ import { LineStackLayout } from '../../UI/Layout';
 import { type PreviewState } from '../PreviewState';
 import PreviewIcon from '../../UI/CustomSvgIcons/Preview';
 import UpdateIcon from '../../UI/CustomSvgIcons/Update';
-import PublishIcon from '../../UI/CustomSvgIcons/Publish';
 import FlatButtonWithSplitMenu from '../../UI/FlatButtonWithSplitMenu';
 import { useResponsiveWindowSize } from '../../UI/Responsive/ResponsiveWindowMeasurer';
-import ResponsiveRaisedButton from '../../UI/ResponsiveRaisedButton';
 import PreferencesContext from '../../MainFrame/Preferences/PreferencesContext';
 import { useIsGameplayTestRunInProgress } from '../../GameplayTests/GameplayTestRunner';
 
@@ -178,14 +176,10 @@ const PreviewAndShareButtons: React.ComponentType<PreviewAndShareButtonsProps> =
       ]
     );
 
-    // Create a separate function to avoid the button passing its event as
-    // the first argument.
-    const onShareClick = React.useCallback(
-      () => {
-        openShareDialog();
-      },
-      [openShareDialog]
-    );
+    // DSGAMES: Share button removed (openShareDialog/isSharingEnabled kept
+    // in props for API compatibility with callers, intentionally unused here).
+    void openShareDialog;
+    void isSharingEnabled;
 
     return (
       <LineStackLayout noMargin>
@@ -210,15 +204,7 @@ const PreviewAndShareButtons: React.ComponentType<PreviewAndShareButtonsProps> =
           // $FlowFixMe[incompatible-type]
           buildMenuTemplate={previewBuildMenuTemplate}
         />
-        <ResponsiveRaisedButton
-          primary
-          onClick={onShareClick}
-          disabled={!isSharingEnabled}
-          icon={<PublishIcon />}
-          label={<Trans>Share</Trans>}
-          // This ID is used for guided lessons, let's keep it stable.
-          id="toolbar-publish-button"
-        />
+        {/* DSGAMES: Share opens GDevelop's cloud publishing flow, hidden. */}
       </LineStackLayout>
     );
   }

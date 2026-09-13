@@ -5484,7 +5484,13 @@ const MainFrame = (props: Props): React.MixedElement => {
 
   React.useEffect(
     () => {
-      openHomePage();
+      // DSGAMES: skip GDevelop's own home/catalog page and go straight
+      // into a new blank project in the scene editor.
+      createEmptyProject({
+        storageProvider: emptyStorageProvider,
+        saveAsLocation: null,
+        creationSource: 'default',
+      });
       GD_STARTUP_TIMES.push(['MainFrameComponentDidMount', performance.now()]);
       _loadExtensions()
         .then(() =>

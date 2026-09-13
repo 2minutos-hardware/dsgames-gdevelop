@@ -34,6 +34,9 @@ import BrowserLoginProvider from './LoginProvider/BrowserLoginProvider';
 import { isServiceWorkerSupported } from './ServiceWorkerSetup';
 import { ensureBrowserSWPreviewSession } from './ExportAndShare/BrowserExporters/BrowserSWPreviewLauncher/BrowserSWPreviewIndexedDB';
 
+// DSGAMES: only keep the local HTML5 export (no cloud builds for mobile/desktop).
+const dsgamesOnlyHtml5 = exporters => exporters.filter(e => e.key === 'webexport');
+
 export const create = (authentication: Authentication): React.Node => {
   Window.setUpContextMenu();
   const loginProvider = new BrowserLoginProvider(authentication.auth);
@@ -99,8 +102,8 @@ export const create = (authentication: Authentication): React.Node => {
                   isSavingProject={props.isSavingProject}
                   onChangeSubscription={props.onChangeSubscription}
                   onClose={props.onClose}
-                  automatedExporters={browserAutomatedExporters}
-                  manualExporters={browserManualExporters}
+                  automatedExporters={dsgamesOnlyHtml5(browserAutomatedExporters)}
+                  manualExporters={dsgamesOnlyHtml5(browserManualExporters)}
                   onlineWebExporter={browserOnlineWebExporter}
                   allExportersRequireOnline
                   fileMetadata={props.fileMetadata}

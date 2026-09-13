@@ -21,7 +21,7 @@ import { loadPreferencesFromLocalStorage } from '../../MainFrame/Preferences/Pre
 type Theme = $Exact<typeof DefaultLightTheme>;
 export type GDevelopTheme = typeof DefaultLightTheme.gdevelopTheme;
 type FullTheme = {| gdevelopTheme: GDevelopTheme, muiTheme: Object |};
-const defaultThemeName = 'GDevelop default Dark';
+const defaultThemeName = 'DSGAMES';
 
 export function getFullTheme({
   themeName,

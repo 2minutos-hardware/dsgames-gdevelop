@@ -12,12 +12,10 @@ import { getTabId } from './EditorTabs/DraggableEditorTabs';
 import { useScreenType } from '../UI/Responsive/ScreenTypeMeasurer';
 import TabsTitlebarTooltip from './TabsTitlebarTooltip';
 import RobotIcon from '../ProjectCreation/RobotIcon';
-import PreferencesContext from './Preferences/PreferencesContext';
 import TextButton from '../UI/TextButton';
 import { useInterval } from '../Utils/UseInterval';
 import classes from './TabsTitlebar.module.css';
 import { useIsMounted } from '../Utils/UseIsMounted';
-import AuthenticatedUserContext from '../Profile/AuthenticatedUserContext';
 import Window from '../Utils/Window';
 import { isMacLike } from '../Utils/Platform';
 import { AiRequestContext } from '../AiGeneration/AiRequestContext';
@@ -117,8 +115,6 @@ export default function TabsTitlebar({
   onAskAiClicked,
 }: TabsTitlebarProps): React.MixedElement {
   const isTouchscreen = useScreenType() === 'touch';
-  const preferences = React.useContext(PreferencesContext);
-  const { limits } = React.useContext(AuthenticatedUserContext);
   const { getWorkingAiRequest } = React.useContext(AiRequestContext);
   // True when an AI request is still working — even if its tab/panel is closed,
   // since the request lives in the app-level AiRequestContext.
@@ -188,13 +184,8 @@ export default function TabsTitlebar({
     []
   );
 
-  const hideAskAi =
-    !!limits &&
-    !!limits.capabilities.classrooms &&
-    limits.capabilities.classrooms.hideAskAi;
-
-  const shouldDisplayAskAi =
-    preferences.values.showAiAskButtonInTitleBar && displayAskAi && !hideAskAi;
+  // DSGAMES: Ask AI depends on GDevelop's paid cloud account features, hide it.
+  const shouldDisplayAskAi = false;
   const isAskAiIconAnimated = useIsAskAiIconAnimated(shouldDisplayAskAi);
 
   const [isGlowing, setIsGlowing] = React.useState(false);
