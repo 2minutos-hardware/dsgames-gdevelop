@@ -1,97 +1,17 @@
 // @flow
-import posthog from 'posthog-js';
-import { getUserUUID, resetUserUUID } from './UserUUID';
 import { type AuthenticatedUser } from '../../Profile/AuthenticatedUserContext';
 import { User as FirebaseUser } from 'firebase/auth';
-import {
-  getProgramOpeningCount,
-  incrementProgramOpeningCount,
-} from './LocalStats';
-import { getIDEVersion, getIDEVersionWithHash } from '../../Version';
-import { loadPreferencesFromLocalStorage } from '../../MainFrame/Preferences/PreferencesProvider';
-import { getBrowserLanguageOrLocale } from '../Language';
+import { incrementProgramOpeningCount } from './LocalStats';
 import { type SubscriptionAnalyticsMetadata } from '../../Profile/Subscription/SubscriptionContext';
-import optionalRequire from '../OptionalRequire';
-import Window from '../Window';
-import {
-  isMobile,
-  isNativeMobileApp,
-  isNativeIos,
-  isNativeAndroid,
-} from '../Platform';
-import { retryIfFailed } from '../RetryIfFailed';
 import { type NewProjectCreationSource } from '../../ProjectCreation/NewProjectSetupDialog';
-import { isServiceWorkerSupported } from '../../ServiceWorkerSetup';
-const electron = optionalRequire('electron');
 
-const isElectronApp = !!electron;
-const isDev = Window.isDev();
-
-// Flag helpful to know if posthog is ready to send events.
-let posthogLoaded = false;
-// Flag helpful to know if the user has been identified, to avoid sending initial events
-// to a random uuid (like program_opening), which may not be merged to the main user's account.
-let userIdentified = false;
-let posthogLastPropertiesSent = '';
-let currentlyRunningInAppTutorial = null;
-
-let gdevelopEditorAnalytics: {|
-  initialize: (rootElement: HTMLElement) => Promise<void>,
-  identify: (
-    userId: string,
-    userProperties: { [string]: any }
-  ) => Promise<void>,
-  trackEvent: (eventName: string, metadata: { [string]: any }) => Promise<void>,
-|} | null = null;
-let gdevelopEditorAnalyticsPromise: Promise<void> | null = null;
-
-const ensureGDevelopEditorAnalyticsReady = async () => {
-  if (gdevelopEditorAnalytics) {
-    // Already loaded.
-    return;
-  }
-
-  if (gdevelopEditorAnalyticsPromise) {
-    // Being loaded.
-    return gdevelopEditorAnalyticsPromise;
-  }
-
-  gdevelopEditorAnalyticsPromise = (async () => {
-    try {
-      // Load the library. If it fails, retry or throw so we can retry later.
-      const module = await retryIfFailed(
-        { times: 2 },
-        async () =>
-          // $FlowFixMe[incompatible-type] - Remote script cannot be found.
-          // $FlowFixMe[cannot-resolve-module]
-          (await import(/* webpackIgnore: true */ 'https://resources.gdevelop.io/a/gea.js'))
-            .default
-      );
-      if (module) {
-        await module.initialize({
-          documentBody: document.body,
-          isNativeMobileApp: isNativeMobileApp(),
-          isElectronApp,
-          isDev,
-          isMobile: isMobile(),
-          ideVersionWithHash: getIDEVersionWithHash(),
-        });
-        gdevelopEditorAnalytics = module;
-      }
-    } catch (error) {
-      console.error('Error while loading GDevelop Editor Analytics:', error);
-    } finally {
-      // If loading fails, retry later.
-      gdevelopEditorAnalyticsPromise = null;
-    }
-  })();
-
-  return gdevelopEditorAnalyticsPromise;
-};
+// DSGAMES: analytics fully disabled (see recordEvent below) — upstream's
+// Posthog state and remote "GDevelop Editor Analytics" script loader
+// (which pulled in third-party ad trackers) were removed entirely.
 
 export const setCurrentlyRunningInAppTutorial = (
   tutorial: string | null
-): string | null => (currentlyRunningInAppTutorial = tutorial);
+): string | null => tutorial;
 
 const makeCanSendEvent = (options: {| minimumTimeBetweenEvents: number |}) => {
   const lastSentEventTimestamps = {};
@@ -111,213 +31,36 @@ const makeCanSendEvent = (options: {| minimumTimeBetweenEvents: number |}) => {
 };
 
 /**
- * Metadata about the app, added to every event. Note that `appKind` is `mobile-app` for both
- * iOS and Android: use `appPlatform` to tell them apart.
+ * DSGAMES: analytics fully disabled. Upstream GDevelop sends events to
+ * PostHog and to a remote script (resources.gdevelop.io/a/gea.js) that
+ * loads third-party ad trackers (TikTok Pixel, Facebook Events, LinkedIn
+ * Insight). We don't want any of that in a self-hosted, no-cloud editor —
+ * this is now a permanent no-op instead of retrying forever every 2s
+ * when those services are unreachable.
  */
-const getAppMetadata = () => ({
-  isInAppTutorialRunning: currentlyRunningInAppTutorial,
-  isInDesktopApp: isElectronApp,
-  isInWebApp: !isElectronApp && !isNativeMobileApp(),
-  isInNativeMobileApp: isNativeMobileApp(),
-  isInNativeIosApp: isNativeIos(),
-  isInNativeAndroidApp: isNativeAndroid(),
-  appKind: isElectronApp
-    ? 'desktop-app'
-    : isNativeMobileApp()
-    ? 'mobile-app'
-    : 'web-app',
-  appPlatform: isNativeIos()
-    ? 'ios'
-    : isNativeAndroid()
-    ? 'android'
-    : isElectronApp
-    ? 'desktop'
-    : 'web',
-  appVersion: getIDEVersion(),
-  appVersionWithHash: getIDEVersionWithHash(),
-  serviceWorkerSupported: isServiceWorkerSupported(),
-});
-
-/**
- * Used to send an event to the analytics.
- * This function will retry to send the event if the analytics service is not ready.
- */
-const recordEvent = (name: string, metadata?: { [string]: any }) => {
-  if (isDev) {
-    // Uncomment to inspect analytics in development.
-    // console.log(`Should have sent analytics event "${name}"`, metadata);
-    return;
-  }
-
-  (() => {
-    if (!posthogLoaded || !userIdentified) {
-      console.info(`App analytics not ready for an event - retrying in 2s.`);
-      setTimeout(() => {
-        console.info(
-          `Retrying to send the app analytics event with name ${name}`
-        );
-        recordEvent(name, metadata);
-      }, 2000);
-
-      return;
-    }
-
-    posthog.capture(name, {
-      ...metadata,
-      ...getAppMetadata(),
-    });
-  })();
-
-  (async () => {
-    await ensureGDevelopEditorAnalyticsReady();
-    if (gdevelopEditorAnalytics) {
-      await gdevelopEditorAnalytics.trackEvent(name, {
-        ...metadata,
-        ...getAppMetadata(),
-      });
-    }
-  })();
-};
+const recordEvent = (name: string, metadata?: { [string]: any }) => {};
 
 /**
  * Used once at the beginning of the app to initialize the analytics.
+ * DSGAMES: disabled, see recordEvent above.
  */
-export const installAnalyticsEvents = () => {
-  if (isDev) {
-    console.info('Development build - Analytics disabled');
-    return;
-  }
-
-  ensureGDevelopEditorAnalyticsReady().catch(() => {
-    // Will be retried when an event is sent.
-  });
-
-  posthog.init('phc_yjTVz4BMHUOhCLBhVImjk3Jn1AjMCg808bxENY228qu', {
-    api_host: 'https://app.posthog.com',
-    loaded: () => {
-      posthogLoaded = true;
-    },
-    autocapture: false, // we disable autocapture because we want to control which events we send.
-  });
-};
+export const installAnalyticsEvents = () => {};
 
 /**
- * Must be called every time the user is fetched (and also even if the user turns out to be not connected).
- * This allows updating the user properties (like the language used, the version of the app, etc...)
- * and to identify the user if not already done.
- * We can safely call it multiple times, as it will only send the user properties if they changed.
+ * DSGAMES: analytics fully disabled, see recordEvent above. No-op instead
+ * of upstream's identify/alias/logout calls, which reached out to Posthog
+ * and the remote gea.js (ad trackers) script.
  */
 export const identifyUserForAnalytics = (
   authenticatedUser: AuthenticatedUser
-) => {
-  if (isDev) {
-    console.info('Development build - Analytics disabled');
-    return;
-  }
+) => {};
 
-  const firebaseUser = authenticatedUser.firebaseUser;
-  const profile = authenticatedUser.profile;
-  const userPreferences = loadPreferencesFromLocalStorage();
-  const appLanguage = userPreferences ? userPreferences.language : undefined;
-  const browserLanguage = getBrowserLanguageOrLocale();
-
-  const userProperties = {
-    providerId: firebaseUser ? firebaseUser.providerId : undefined,
-    email: firebaseUser ? firebaseUser.email : undefined,
-    emailVerified: firebaseUser ? firebaseUser.emailVerified : undefined,
-    // Only keep information useful to generate app usage statistics:
-    uuid: getUserUUID(),
-    version: getIDEVersion(),
-    versionWithHash: getIDEVersionWithHash(),
-    appLanguage,
-    browserLanguage,
-    programOpeningCount: getProgramOpeningCount(),
-    themeName: userPreferences ? userPreferences.themeName : 'Unknown',
-    ...(isElectronApp ? { usedDesktopApp: true } : { usedWebApp: true }),
-    // Additional profile information:
-    gdevelopUsage: profile ? profile.gdevelopUsage : undefined,
-    teamOrCompanySize: profile ? profile.teamOrCompanySize : undefined,
-    companyName: profile ? profile.companyName : undefined,
-    creationExperience: profile ? profile.creationExperience : undefined,
-    creationGoal: profile ? profile.creationGoal : undefined,
-    hearFrom: profile ? profile.hearFrom : undefined,
-  };
-
-  // If the user is not logged in, identify the user by its anonymous UUID.
-  // If the user is logged in, identify the user by its Firebase ID.
-  const userId = firebaseUser ? firebaseUser.uid : getUserUUID();
-
-  (() => {
-    if (!posthogLoaded) {
-      console.info(`App analytics not ready - retrying in 2s.`);
-      setTimeout(() => {
-        console.info(`Retrying to update the user for app analytics.`);
-        identifyUserForAnalytics(authenticatedUser);
-      }, 2000);
-
-      return;
-    }
-
-    // Identify which user is using the app, after de-duplicating the call to
-    // avoid useless calls.
-    // This is so we can build stats on the used version, languages and usage
-    // of GDevelop features.
-    const stringifiedUserProperties = JSON.stringify(userProperties);
-    if (stringifiedUserProperties !== posthogLastPropertiesSent) {
-      posthog.identify(userId, userProperties);
-      posthogLastPropertiesSent = stringifiedUserProperties;
-      userIdentified = true;
-    }
-  })();
-
-  (async () => {
-    await ensureGDevelopEditorAnalyticsReady();
-    if (gdevelopEditorAnalytics) {
-      await gdevelopEditorAnalytics.identify(userId, userProperties);
-    }
-  })();
-};
-
-/**
- * Must be called on signup, to link the current user Firebase ID to the anonymous UUID
- * that was used before the signup (this allows linking the events sent before the signup)
- * This is only done on signup as an ID can only be an alias of another ID once.
- */
 export const aliasUserForAnalyticsAfterSignUp = (
   // $FlowFixMe[value-as-type]
   firebaseUser: FirebaseUser
-) => {
-  if (isDev) {
-    console.info('Development build - Analytics disabled');
-    return;
-  }
+) => {};
 
-  if (!posthogLoaded) {
-    console.info(`App analytics not ready for aliasing - retrying in 2s.`);
-    setTimeout(() => {
-      console.info(`Retrying to alias the user for app analytics.`);
-      aliasUserForAnalyticsAfterSignUp(firebaseUser);
-    }, 2000);
-
-    return;
-  }
-
-  // This indicates to Posthog that the current user Firebase ID is now an alias
-  // of the anonymous UUID that was used before the signup.
-  posthog.alias(firebaseUser.uid, getUserUUID());
-};
-
-export const onUserLogoutForAnalytics = () => {
-  if (isDev) {
-    console.info('Development build - Analytics disabled');
-    return;
-  }
-
-  // Reset the UUID to generate a random new one and be sure
-  // we don't count different users as a single one in our stats.
-  resetUserUUID();
-  posthog.reset();
-};
+export const onUserLogoutForAnalytics = () => {};
 
 export const sendProgramOpening = () => {
   incrementProgramOpeningCount();
