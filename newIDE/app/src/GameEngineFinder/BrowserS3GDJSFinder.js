@@ -1,9 +1,6 @@
 // @flow
 import Window from '../Utils/Window';
 
-// $FlowFixMe[cannot-resolve-name]
-const PUBLIC_URL: string = process.env.PUBLIC_URL || '';
-
 type FileSet =
   | 'preview'
   | 'cordova'
@@ -54,11 +51,17 @@ export const findGDJS = (
   // since we never published anything there. This also keeps the editor
   // fully self-hosted with no network dependency on gdevelop-app.com,
   // matching the rest of this fork (see also ServiceWorkerSetup.js).
+  // Built with a relative "homepage" in package.json, so PUBLIC_URL is
+  // the literal string "." at build time, not an absolute path — naive
+  // string concatenation (`window.location.origin + PUBLIC_URL`) produces
+  // a broken URL. Resolve it properly against the current document
+  // instead, the same way the browser resolves this build's own relative
+  // asset references (<script src="./static/js/...">).
   let gdjsRoot =
     Window.isDev() && window.location.hostname === 'localhost'
       ? // Served by `watch-serve-GDJS-runtime.js` when running the IDE locally.
         `http://localhost:5002`
-      : `${window.location.origin}${PUBLIC_URL}/GDJS`;
+      : new URL('GDJS', document.baseURI).href;
 
   return Promise.all(
     filesToDownload[fileSet].map(relativeFilePath => {

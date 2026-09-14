@@ -98,6 +98,7 @@ const PublishToDSGAMESDialog = ({ project, onClose }: Props): React.Node => {
         });
       }
     } catch (error) {
+      console.error('[DSGAMES] Publish to DSGAMES failed:', error);
       setState({
         status: 'error',
         message:
