@@ -760,6 +760,7 @@ const EditorTabsPane: React.ComponentType<{
           !!currentProject && currentProject.getLayoutsCount() > 0
         }
         previewState={previewState}
+        project={currentProject}
         onOpenVersionHistory={openVersionHistoryPanel}
         checkedOutVersionStatus={checkedOutVersionStatus}
         onQuitVersionHistory={onQuitVersionHistory}

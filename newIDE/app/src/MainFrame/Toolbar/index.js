@@ -170,6 +170,7 @@ export default (React.forwardRef<MainFrameToolbarProps, ToolbarInterface>(
                   hasPreviewsRunning={props.hasPreviewsRunning}
                   openShareDialog={props.openShareDialog}
                   isSharingEnabled={props.isSharingEnabled}
+                  project={props.project}
                 />
                 <Spacer />
               </ToolbarGroup>

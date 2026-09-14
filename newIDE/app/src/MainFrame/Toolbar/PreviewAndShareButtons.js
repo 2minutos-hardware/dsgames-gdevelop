@@ -6,10 +6,13 @@ import { LineStackLayout } from '../../UI/Layout';
 import { type PreviewState } from '../PreviewState';
 import PreviewIcon from '../../UI/CustomSvgIcons/Preview';
 import UpdateIcon from '../../UI/CustomSvgIcons/Update';
+import PublishIcon from '../../UI/CustomSvgIcons/Publish';
 import FlatButtonWithSplitMenu from '../../UI/FlatButtonWithSplitMenu';
+import FlatButton from '../../UI/FlatButton';
 import { useResponsiveWindowSize } from '../../UI/Responsive/ResponsiveWindowMeasurer';
 import PreferencesContext from '../../MainFrame/Preferences/PreferencesContext';
 import { useIsGameplayTestRunInProgress } from '../../GameplayTests/GameplayTestRunner';
+import PublishToDSGAMESDialog from '../PublishToDSGAMESDialog';
 
 export type PreviewAndShareButtonsProps = {|
   onPreviewWithoutHotReload: (?{ numberOfWindows: number }) => Promise<void>,
@@ -30,6 +33,7 @@ export type PreviewAndShareButtonsProps = {|
   previewState: PreviewState,
   openShareDialog: () => void,
   isSharingEnabled: boolean,
+  project: ?gdProject,
 |};
 
 const PreviewAndShareButtons: React.ComponentType<PreviewAndShareButtonsProps> = React.memo<PreviewAndShareButtonsProps>(
@@ -46,7 +50,12 @@ const PreviewAndShareButtons: React.ComponentType<PreviewAndShareButtonsProps> =
     setPreviewOverride,
     openShareDialog,
     isSharingEnabled,
+    project,
   }: PreviewAndShareButtonsProps) {
+    const [
+      isPublishDialogOpen,
+      setIsPublishDialogOpen,
+    ] = React.useState<boolean>(false);
     const preferences = React.useContext(PreferencesContext);
     const { isMobile } = useResponsiveWindowSize();
     // Launching or hot-reloading a preview while a gameplay test runs would
@@ -204,7 +213,22 @@ const PreviewAndShareButtons: React.ComponentType<PreviewAndShareButtonsProps> =
           // $FlowFixMe[incompatible-type]
           buildMenuTemplate={previewBuildMenuTemplate}
         />
-        {/* DSGAMES: Share opens GDevelop's cloud publishing flow, hidden. */}
+        {/* DSGAMES: Share opens GDevelop's cloud publishing flow, hidden.
+            Replaced with our own "Publish to DSGAMES" button below. */}
+        {project && (
+          <FlatButton
+            primary
+            leftIcon={<PublishIcon />}
+            label={!isMobile ? <Trans>Publish to DSGAMES</Trans> : null}
+            onClick={() => setIsPublishDialogOpen(true)}
+          />
+        )}
+        {isPublishDialogOpen && project && (
+          <PublishToDSGAMESDialog
+            project={project}
+            onClose={() => setIsPublishDialogOpen(false)}
+          />
+        )}
       </LineStackLayout>
     );
   }
