@@ -4,8 +4,6 @@ import { isNativeMobileApp } from './Utils/Platform';
 
 // $FlowFixMe[cannot-resolve-name]
 const PUBLIC_URL: string = process.env.PUBLIC_URL || '';
-// $FlowFixMe[cannot-resolve-name]
-const isDev = process.env.NODE_ENV !== 'production';
 
 const electron = optionalRequire('electron');
 const serviceWorker =
@@ -15,67 +13,35 @@ export function isServiceWorkerSupported(): boolean {
   return !!serviceWorker;
 }
 
+// DSGAMES: upstream's service worker hardcodes '/index.html' as the
+// Workbox navigation fallback (see public/service-worker.js), which only
+// works when the app is hosted at the domain root. We serve it under a
+// subpath (/editor/), so that fallback never matches anything in the
+// precache and navigations can fail (observed as an unrelated 404 on
+// repeat visits, until the stale worker is unregistered). This editor
+// doesn't need offline/PWA support, so instead of patching the fallback
+// path we just don't register a service worker at all — and actively
+// unregister any that a previous build already installed in the visitor's
+// browser, so anyone who hit the bug self-heals on their next load.
 export function registerServiceWorker() {
   if (isNativeMobileApp() || !!electron) {
     return;
   }
 
   if (!serviceWorker) {
-    console.warn(
-      'Service Worker not supported on this deployment (probably: not HTTPS and not localhost).'
-    );
     return;
   }
 
   window.addEventListener('load', () => {
-    // Use a cache-buster for development so that the service worker is
-    // always reloaded when the app is reloaded.
-    const swUrl = isDev
-      ? `${PUBLIC_URL}/service-worker.js?dev=${Date.now()}`
-      : `${PUBLIC_URL}/service-worker.js`;
-
-    serviceWorker
-      .register(swUrl)
-      .then(registration => {
-        registration.onupdatefound = () => {
-          const installingWorker = registration.installing;
-          if (installingWorker == null) {
-            return;
-          }
-          installingWorker.onstatechange = () => {
-            if (installingWorker.state === 'installed') {
-              const alreadyHasAServiceWorker = !!serviceWorker.controller;
-              if (!isDev) {
-                if (alreadyHasAServiceWorker) {
-                  // At this point, the updated precached content has been fetched,
-                  // but the previous service worker will still serve the older
-                  // content until all client tabs are closed.
-                  console.log(
-                    'A new version is available and will be used when all tabs for this page are closed.'
-                  );
-                } else {
-                  // Service worker has been installed for the first time.
-                  console.log('Content is cached for offline use.');
-                }
-              }
-            }
-          };
-        };
-      })
-      .catch(error => {
-        console.error('Error during service worker registration:', error);
-      });
-
-    if (!isDev) {
-      // Forces a check right now for a newer service worker script.
-      // If there is one, it will be installed (see the service worker script to verify how in development
-      // a new service worker script does a `self.skipWaiting()` and `self.clients.claim()`).
-      // In development, the Date.now() cache-buster in the SW URL already ensures a fresh
-      // script on every load — calling update() on top of it causes a Firefox error because
-      // the ready registration's scriptURL no longer matches the newly registered URL.
-      serviceWorker.ready.then(registration => {
-        registration.update();
-      });
-    }
+    // getRegistrations() is origin-wide, not scoped to this page — DSGAMES
+    // itself registers an unrelated service worker at the site root for
+    // push notifications (scope "/"), which must be left alone. Only
+    // unregister the one scoped under our own deployment path.
+    const ownScope = new URL(PUBLIC_URL || '/', window.location.href).href;
+    serviceWorker.getRegistrations().then(registrations => {
+      registrations
+        .filter(registration => registration.scope.startsWith(ownScope))
+        .forEach(registration => registration.unregister());
+    });
   });
 }
