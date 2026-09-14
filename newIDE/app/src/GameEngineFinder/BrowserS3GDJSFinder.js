@@ -1,6 +1,8 @@
 // @flow
 import Window from '../Utils/Window';
-import { getIDEVersionWithHash } from '../Version';
+
+// $FlowFixMe[cannot-resolve-name]
+const PUBLIC_URL: string = process.env.PUBLIC_URL || '';
 
 type FileSet =
   | 'preview'
@@ -45,22 +47,18 @@ export const findGDJS = (
   gdjsRoot: string,
   filesContent: Array<TextFileDescriptor>,
 |}> => {
-  // Get GDJS for this version. If you updated the version,
-  // run `newIDE/web-app/scripts/deploy-GDJS-Runtime` script.
-  let gdjsRoot = `https://resources.gdevelop-app.com/GDJS-${getIDEVersionWithHash()}`;
-
-  if (Window.isDev()) {
-    gdjsRoot =
-      window.location.hostname === 'localhost'
-        ? // Served by `watch-serve-GDJS-runtime.js` when running the IDE locally.
-          `http://localhost:5002`
-        : // On a deployed development build (e.g. editor-dev), use the runtime
-          // bundled with the build (see `copy-GDJS-Runtime-to-build.js`).
-          // Fetching localhost from a public origin would trigger the browser
-          // "Local Network Access" permission prompt and fail for anyone
-          // not running a local server.
-          `${window.location.origin}/GDJS`;
-  }
+  // DSGAMES: always use the GDJS Runtime bundled with this build (copied in
+  // by `copy-GDJS-Runtime-to-build.js`, part of `npm run build`), never
+  // GDevelop's own CDN. That CDN only hosts runtimes for their official
+  // releases, keyed by git hash — it 403s for any commit of our own fork,
+  // since we never published anything there. This also keeps the editor
+  // fully self-hosted with no network dependency on gdevelop-app.com,
+  // matching the rest of this fork (see also ServiceWorkerSetup.js).
+  let gdjsRoot =
+    Window.isDev() && window.location.hostname === 'localhost'
+      ? // Served by `watch-serve-GDJS-runtime.js` when running the IDE locally.
+        `http://localhost:5002`
+      : `${window.location.origin}${PUBLIC_URL}/GDJS`;
 
   return Promise.all(
     filesToDownload[fileSet].map(relativeFilePath => {
