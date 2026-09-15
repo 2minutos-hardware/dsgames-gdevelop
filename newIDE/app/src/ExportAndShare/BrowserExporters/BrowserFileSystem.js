@@ -32,6 +32,37 @@ const isURL = (filename: string) => {
   );
 };
 
+// DSGAMES: locally uploaded resources (see LocalFileResourceUploader.js) are
+// embedded as `data:` URIs, with no server involved. `pathPosix.basename` is
+// meaningless on those - worse, since base64 payloads can contain literal
+// "/" characters, it would grab a garbage fragment of the data itself as
+// the "filename", which then has no recognized extension and gets rejected
+// by DSGAMES' upload validation. Derive a stable, extension-bearing name
+// from the MIME type instead.
+const dataUriMimeToExtension: { [string]: string } = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/svg+xml': 'svg',
+  'image/bmp': 'bmp',
+  'image/x-icon': 'ico',
+  'audio/mpeg': 'mp3',
+  'audio/mp3': 'mp3',
+  'audio/ogg': 'ogg',
+  'audio/wav': 'wav',
+  'audio/x-wav': 'wav',
+  'audio/aac': 'aac',
+  'audio/mp4': 'm4a',
+  'font/ttf': 'ttf',
+  'font/otf': 'otf',
+  'font/woff': 'woff',
+  'font/woff2': 'woff2',
+  'video/mp4': 'mp4',
+  'video/webm': 'webm',
+  'application/json': 'json',
+};
+
 // For some reason, `path.posix` is undefined when packaged
 // with webpack, so we're using `path` directly. As it's for the web-app,
 // it should always be the posix version. In tests on Windows,
@@ -56,6 +87,14 @@ export default class BrowserFileSystem {
    * @private
    */
   _filesToDownload: { [string]: string } = {};
+
+  /**
+   * DSGAMES: names generated for `data:` URI resources, keyed by the URI
+   * itself, so the same resource always resolves to the same file name
+   * within one export (see `fileNameFrom`/`_fileNameFromDataUri`).
+   * @private
+   */
+  _dataUriFileNames: Map<string, string> = new Map();
 
   /**
    * Create a new in-memory file system.
@@ -114,6 +153,10 @@ export default class BrowserFileSystem {
     return '/browser-file-system-tmp-dir';
   };
   fileNameFrom = (fullpath: string): any => {
+    if (fullpath.startsWith('data:')) {
+      return this._fileNameFromDataUri(fullpath);
+    }
+
     // For URLs (like resources of cloud projects), decode the percent-encoded
     // file name, so that the file is stored on disk with its decoded name
     // (required for the file to be found when the game runs - notably in
@@ -124,6 +167,25 @@ export default class BrowserFileSystem {
     }
 
     return pathPosix.basename(fullpath);
+  };
+
+  /**
+   * DSGAMES: compute a stable, extension-bearing file name for a `data:`
+   * URI resource (see the comment on `dataUriMimeToExtension` above).
+   * @private
+   */
+  _fileNameFromDataUri = (dataUri: string): string => {
+    const existingFileName = this._dataUriFileNames.get(dataUri);
+    if (existingFileName) return existingFileName;
+
+    const match = dataUri.match(/^data:([^;,]*)/);
+    const mimeType = match ? match[1] : '';
+    const extension = dataUriMimeToExtension[mimeType] || 'bin';
+    const fileName = `local-resource-${
+      this._dataUriFileNames.size
+    }.${extension}`;
+    this._dataUriFileNames.set(dataUri, fileName);
+    return fileName;
   };
   dirNameFrom = (fullpath: string): any => {
     return pathPosix.dirname(fullpath);
