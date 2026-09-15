@@ -64,7 +64,7 @@ const resourceKindToInputAcceptedMimes = {
   javascript: ['text/javascript'],
 };
 
-const getAcceptedExtensions = (
+export const getAcceptedExtensions = (
   resourceKind: ResourceKind,
   withLeadingDot: boolean = true
 ): string[] => {
@@ -82,7 +82,7 @@ const getAcceptedMimeTypes = (resourceKind: ResourceKind): string[] => {
   return resourceKindToInputAcceptedMimes[resourceKind] || [];
 };
 
-const usesFilePseudoMime = (resourceKind: ResourceKind): boolean => {
+export const usesFilePseudoMime = (resourceKind: ResourceKind): boolean => {
   const acceptedMimes = getAcceptedMimeTypes(resourceKind);
   return acceptedMimes.length === 1 && acceptedMimes[0] === 'file';
 };
