@@ -14,6 +14,12 @@ import PreferencesContext from '../../MainFrame/Preferences/PreferencesContext';
 import { useIsGameplayTestRunInProgress } from '../../GameplayTests/GameplayTestRunner';
 import PublishToDSGAMESDialog from '../PublishToDSGAMESDialog';
 
+// DSGAMES: same URL param PublishToDSGAMESDialog reads - kept in sync so the
+// toolbar button's label matches what the dialog it opens will actually do.
+const isEditingExistingGame = !!new URLSearchParams(window.location.search).get(
+  'editSlug'
+);
+
 export type PreviewAndShareButtonsProps = {|
   onPreviewWithoutHotReload: (?{ numberOfWindows: number }) => Promise<void>,
   onOpenDebugger: () => void,
@@ -219,7 +225,15 @@ const PreviewAndShareButtons: React.ComponentType<PreviewAndShareButtonsProps> =
           <FlatButton
             primary
             leftIcon={<PublishIcon />}
-            label={!isMobile ? <Trans>Publish to DSGAMES</Trans> : null}
+            label={
+              !isMobile ? (
+                isEditingExistingGame ? (
+                  <Trans>Update on DSGAMES</Trans>
+                ) : (
+                  <Trans>Publish to DSGAMES</Trans>
+                )
+              ) : null
+            }
             onClick={() => setIsPublishDialogOpen(true)}
           />
         )}
