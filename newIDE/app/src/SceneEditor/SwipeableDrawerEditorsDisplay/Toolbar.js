@@ -1,5 +1,5 @@
 // @flow
-import { t, Trans } from '@lingui/macro';
+import { t } from '@lingui/macro';
 import { type I18n as I18nType } from '@lingui/core';
 import * as React from 'react';
 import { ToolbarGroup } from '../../UI/Toolbar';
@@ -14,9 +14,6 @@ import TrashIcon from '../../UI/CustomSvgIcons/Trash';
 import GridIcon from '../../UI/CustomSvgIcons/Grid';
 import ZoomInIcon from '../../UI/CustomSvgIcons/ZoomIn';
 import EditSceneIcon from '../../UI/CustomSvgIcons/EditScene';
-import CompactToggleButtons from '../../UI/CompactToggleButtons';
-import Grid2d from '../../UI/CustomSvgIcons/Grid2d';
-import Grid3d from '../../UI/CustomSvgIcons/Grid3d';
 
 type Props = {|
   gameEditorMode: 'embedded-game' | 'instances-editor',
@@ -64,32 +61,9 @@ const Toolbar: React.ComponentType<Props> = React.memo<Props>(function(props) {
         canDeleteSelection={props.selectedInstancesCount !== 0}
         onOpenSceneVariables={props.onOpenSceneVariables}
       />
-      <CompactToggleButtons
-        id="game-editor-toggle"
-        noSeparator
-        buttons={[
-          {
-            id: '2d-instances-editor',
-            renderIcon: className => <Grid2d className={className} />,
-            tooltip: <Trans>Top-down, classic editor</Trans>,
-            label: '2D',
-            onClick: () => {
-              props.setGameEditorMode('instances-editor');
-            },
-            isActive: props.gameEditorMode === 'instances-editor',
-          },
-          {
-            id: '3d-game-editor',
-            renderIcon: className => <Grid3d className={className} />,
-            tooltip: <Trans>3D, real-time editor (new)</Trans>,
-            label: '3D',
-            onClick: () => {
-              props.setGameEditorMode('embedded-game');
-            },
-            isActive: props.gameEditorMode === 'embedded-game',
-          },
-        ]}
-      />
+      {/* DSGAMES: "3D" mode removed here too - see MosaicEditorsDisplay/Toolbar.js
+          for why (it needs a root-scoped service worker that's already
+          claimed by DSGAMES's own push-notification worker). */}
       <IconButton
         size="small"
         color="default"

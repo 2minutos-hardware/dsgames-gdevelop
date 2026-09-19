@@ -1,5 +1,5 @@
 // @flow
-import { t, Trans } from '@lingui/macro';
+import { t } from '@lingui/macro';
 import { type I18n as I18nType } from '@lingui/core';
 import * as React from 'react';
 import { ToolbarGroup } from '../../UI/Toolbar';
@@ -26,9 +26,6 @@ import {
   OPEN_OBJECTS_PANEL_BUTTON_ID,
   OPEN_PROPERTIES_PANEL_BUTTON_ID,
 } from '../utils';
-import CompactToggleButtons from '../../UI/CompactToggleButtons';
-import Grid2d from '../../UI/CustomSvgIcons/Grid2d';
-import Grid3d from '../../UI/CustomSvgIcons/Grid3d';
 
 type Props = {|
   gameEditorMode: 'embedded-game' | 'instances-editor',
@@ -84,32 +81,15 @@ const Toolbar: React.ComponentType<Props> = React.memo<Props>(function Toolbar(
         onOpenSceneVariables={props.onOpenSceneVariables}
       />
       <ToolbarGroup lastChild>
-        <CompactToggleButtons
-          id="game-editor-toggle"
-          noSeparator
-          buttons={[
-            {
-              id: '2d-instances-editor',
-              renderIcon: className => <Grid2d className={className} />,
-              tooltip: <Trans>Top-down, classic editor</Trans>,
-              label: '2D',
-              onClick: () => {
-                props.setGameEditorMode('instances-editor');
-              },
-              isActive: props.gameEditorMode === 'instances-editor',
-            },
-            {
-              id: '3d-game-editor',
-              renderIcon: className => <Grid3d className={className} />,
-              tooltip: <Trans>3D, real-time editor (new)</Trans>,
-              label: '3D',
-              onClick: () => {
-                props.setGameEditorMode('embedded-game');
-              },
-              isActive: props.gameEditorMode === 'embedded-game',
-            },
-          ]}
-        />
+        {/* DSGAMES: the "3D" mode loads a live preview through an iframe
+            pointing at /browser_sw_preview/... on this same origin, which
+            only resolves if a service worker intercepts it - upstream
+            registers that worker at the root scope ("/"), which here is
+            already claimed by DSGAMES's own service worker for push
+            notifications (see ServiceWorkerSetup.js). Rather than fight
+            over that scope, the entry point to this mode is removed; the
+            2D instances editor (the only mode that works standalone) is
+            always active, so no toggle is needed. */}
         <ToolbarSeparator />
         <IconButton
           size="small"
