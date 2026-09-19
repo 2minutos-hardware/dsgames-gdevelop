@@ -10,7 +10,10 @@ import {
   sendProgramOpening,
   installAnalyticsEvents,
 } from './Utils/Analytics/EventSender';
-import { registerServiceWorker } from './ServiceWorkerSetup';
+import {
+  registerServiceWorker,
+  registerBrowserSWPreviewWorker,
+} from './ServiceWorkerSetup';
 import './UI/icomoon-font.css'; // Styles for Icomoon font.
 import optionalRequire from './Utils/OptionalRequire';
 import { loadScript } from './Utils/LoadScript';
@@ -161,3 +164,4 @@ if (rootElement) {
 } else console.error('No root element defined in index.html');
 
 registerServiceWorker();
+registerBrowserSWPreviewWorker();
