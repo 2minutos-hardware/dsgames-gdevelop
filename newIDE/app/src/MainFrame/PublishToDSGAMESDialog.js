@@ -191,8 +191,9 @@ const PublishToDSGAMESDialog = ({ project, onClose }: Props): React.Node => {
         <Text>
           {editSlug ? (
             <Trans>
-              Updated! It'll appear in the DSGAMES catalog once it's reviewed
-              again.
+              Update submitted for review. If this game was already live, it
+              stays playable on its current version until the update is
+              approved.
             </Trans>
           ) : (
             <Trans>
