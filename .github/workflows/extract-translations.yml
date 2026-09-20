@@ -2,13 +2,10 @@
 
 name: Extract translations
 on:
-  # Execute for all commits (to ensure translations extraction works)
-  push:
-    branches:
-      - "**"
-    tags-ignore:
-      - "**" # Don't run on new tags
-  # Allows to run this workflow manually from the Actions tab.
+  # DSGAMES: push trigger disabled - fails on a clean `npm ci` (lock file
+  # out of sync) and the Crowdin upload step needs credentials this fork
+  # doesn't have/need. Left as workflow_dispatch in case it's ever useful
+  # to run by hand.
   workflow_dispatch:
 
 jobs:

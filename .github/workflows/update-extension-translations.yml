@@ -4,11 +4,9 @@
 
 name: Update extension translations
 on:
-  push:
-    branches:
-      - master
-    tags-ignore:
-      - "**" # Don't run on new tags
+  # DSGAMES: push trigger disabled - would open auto-PRs nobody reviews on
+  # this fork. Left as workflow_dispatch in case it's ever useful to run
+  # by hand.
   workflow_dispatch: # Allows manual triggering from the Actions tab
 
 jobs:

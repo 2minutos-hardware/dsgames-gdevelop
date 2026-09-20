@@ -7,14 +7,11 @@
 name: Build Storybook
 
 on:
-  # Launch on all commits.
-  push:
-    branches:
-      - "**"
-    tags-ignore:
-      - "**" # Don't run on new tags
-  # Allows to run this workflow manually from the Actions tab,
-  # to publish on Chromatic (not done by default).
+  # DSGAMES: push trigger disabled - this needs GDevelop's own AWS/Chromatic
+  # secrets, which this fork doesn't have and doesn't need (the actual
+  # editor build/deploy is manual, see newIDE/app/scripts/import-libGD.js
+  # and PublishToDSGAMESDialog.js). Left as workflow_dispatch in case it's
+  # ever useful to run by hand.
   workflow_dispatch:
 
 jobs:

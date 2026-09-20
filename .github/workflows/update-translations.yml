@@ -3,13 +3,9 @@
 
 name: Update translations
 on:
-  # Execute only on master
-  push:
-    branches:
-      - master
-    tags-ignore:
-      - "**" # Don't run on new tags
-  # Allows to run this workflow manually from the Actions tab.
+  # DSGAMES: push trigger disabled - needs Crowdin credentials this fork
+  # doesn't have/need, and would open auto-PRs nobody reviews here. Left as
+  # workflow_dispatch in case it's ever useful to run by hand.
   workflow_dispatch:
 
 jobs:
