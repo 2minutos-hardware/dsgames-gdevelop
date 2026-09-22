@@ -14,6 +14,8 @@ import {
   type WillDeleteSceneChanges,
   type WillDeleteGameplayTestChanges,
   type WillDeleteObjectChanges,
+  type ExtensionsOutsideEditorChanges,
+  type WillDeleteExtensionItemChanges,
 } from '../EditorFunctions/OutsideEditorChanges';
 import { type ObjectWithContext } from '../ObjectsList/EnumerateObjects';
 import Paper from '../UI/Paper';
@@ -89,6 +91,7 @@ import {
 } from './Utils';
 import PreferencesContext from '../MainFrame/Preferences/PreferencesContext';
 import UnsavedChangesContext from '../MainFrame/UnsavedChangesContext';
+import EventsFunctionsExtensionsContext from '../EventsFunctionsExtensionsLoader/EventsFunctionsExtensionsContext';
 import useAlertDialog from '../UI/Alert/useAlertDialog';
 import { useResponsiveWindowSize } from '../UI/Responsive/ResponsiveWindowMeasurer';
 import { t } from '@lingui/macro';
@@ -153,6 +156,7 @@ type Props = {|
         | 'none',
     |}
   ) => void,
+  onOpenExternalLayout: (externalLayoutName: string) => void,
   onSceneEventsModifiedOutsideEditor: (
     changes: SceneEventsOutsideEditorChanges
   ) => void,
@@ -173,6 +177,23 @@ type Props = {|
     changes: WillDeleteGameplayTestChanges
   ) => Promise<void>,
   onWillDeleteObject: (changes: WillDeleteObjectChanges) => void,
+  onExtensionsModifiedOutsideEditor: (
+    changes: ExtensionsOutsideEditorChanges
+  ) => void,
+  onWillDeleteExtensionItem: (
+    changes: WillDeleteExtensionItemChanges
+  ) => Promise<void>,
+  onOpenEventsFunctionsExtension: (
+    extensionName: string,
+    initiallyFocusedFunctionName?: ?string,
+    initiallyFocusedBehaviorName?: ?string,
+    initiallyFocusedObjectName?: ?string
+  ) => void,
+  onOpenCustomObjectEditor: (
+    extensionName: string,
+    objectName: string,
+    variantName: string
+  ) => void,
   onWillInstallExtension: (extensionNames: Array<string>) => void,
   onExtensionInstalled: (extensionNames: Array<string>) => void,
   onOpenAskAi: ({|
@@ -228,6 +249,9 @@ export type AskAiEditorInterface = {|
     changes: ObjectGroupsOutsideEditorChanges
   ) => void,
   onWillDeleteObject: (changes: WillDeleteObjectChanges) => void,
+  onExtensionsModifiedOutsideEditor: (
+    changes: ExtensionsOutsideEditorChanges
+  ) => void,
   selectAllInsideEditor: () => void,
   startOrOpenChat: (
     ?{|
@@ -269,6 +293,7 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
         onCreateProjectFromExample,
         onCreateEmptyProject,
         onOpenLayout,
+        onOpenExternalLayout,
         onSceneEventsModifiedOutsideEditor,
         onInstancesModifiedOutsideEditor,
         onObjectsModifiedOutsideEditor,
@@ -277,6 +302,10 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
         onWillDeleteScene,
         onWillDeleteGameplayTest,
         onWillDeleteObject,
+        onExtensionsModifiedOutsideEditor,
+        onWillDeleteExtensionItem,
+        onOpenEventsFunctionsExtension,
+        onOpenCustomObjectEditor,
         onWillInstallExtension,
         onExtensionInstalled,
         onOpenAskAi,
@@ -332,15 +361,52 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
         [onCreateProjectFromExample, onCreateEmptyProject, i18n]
       );
 
+      // `EditorCallbacks` names the item to focus with an options object,
+      // while the editor opens an extension with positional arguments.
+      const onOpenEventsFunctionsExtensionItem = React.useCallback(
+        (
+          extensionName: string,
+          {
+            functionName,
+            behaviorName,
+            objectName,
+          }: {|
+            functionName?: string,
+            behaviorName?: string,
+            objectName?: string,
+          |}
+        ) => {
+          onOpenEventsFunctionsExtension(
+            extensionName,
+            functionName,
+            behaviorName,
+            objectName
+          );
+        },
+        [onOpenEventsFunctionsExtension]
+      );
+
       const editorCallbacks: EditorCallbacks = React.useMemo(
         () => ({
           onOpenLayout,
+          onOpenExternalLayout,
           onCreateProject,
+          onOpenEventsFunctionsExtension: onOpenEventsFunctionsExtensionItem,
+          onOpenCustomObjectEditor,
         }),
-        [onOpenLayout, onCreateProject]
+        [
+          onOpenLayout,
+          onOpenExternalLayout,
+          onCreateProject,
+          onOpenEventsFunctionsExtensionItem,
+          onOpenCustomObjectEditor,
+        ]
       );
 
       const { triggerUnsavedChanges } = React.useContext(UnsavedChangesContext);
+      const eventsFunctionsExtensionsState = React.useContext(
+        EventsFunctionsExtensionsContext
+      );
       const storageProviderName = storageProvider
         ? storageProvider.internalName
         : null;
@@ -700,12 +766,14 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
           aiRequestId,
           userMessage,
           createdSceneNames,
+          createdExternalLayoutNames,
           createdProject,
           editorFunctionCallResults,
         }: {|
           aiRequestId: string,
           userMessage: string,
           createdSceneNames?: Array<string>,
+          createdExternalLayoutNames?: Array<string>,
           createdProject?: ?gdProject,
           editorFunctionCallResults: Array<EditorFunctionCallResult>,
         |}) => {
@@ -898,6 +966,14 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
               });
             });
           }
+          if (
+            createdExternalLayoutNames &&
+            createdExternalLayoutNames.length > 0
+          ) {
+            createdExternalLayoutNames.forEach(externalLayoutName => {
+              onOpenExternalLayout(externalLayoutName);
+            });
+          }
         },
         [
           profile,
@@ -918,6 +994,7 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
           refreshLimits,
           project,
           onOpenLayout,
+          onOpenExternalLayout,
           automaticallyUseCreditsForAiRequests,
           triggerUnsavedChanges,
         ]
@@ -958,6 +1035,7 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
           editorFunctionCallResults: Array<EditorFunctionCallResult>,
           options: {|
             createdSceneNames?: Array<string>,
+            createdExternalLayoutNames?: Array<string>,
             createdProject?: ?gdProject,
           |}
         ) => {
@@ -966,6 +1044,7 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
             userMessage: '',
             createdProject: options.createdProject,
             createdSceneNames: options.createdSceneNames,
+            createdExternalLayoutNames: options.createdExternalLayoutNames,
             editorFunctionCallResults,
           });
         },
@@ -1012,6 +1091,9 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
         onWillDeleteScene,
         onWillDeleteGameplayTest,
         onWillDeleteObject,
+        eventsFunctionsExtensionsState,
+        onExtensionsModifiedOutsideEditor,
+        onWillDeleteExtensionItem,
         i18n,
         onWillInstallExtension,
         onExtensionInstalled,
@@ -1130,6 +1212,7 @@ export const AskAiEditor: React.ComponentType<Props> = React.memo<Props>(
         onObjectsModifiedOutsideEditor: noop,
         onObjectGroupsModifiedOutsideEditor: noop,
         onWillDeleteObject: noop,
+        onExtensionsModifiedOutsideEditor: noop,
         selectAllInsideEditor: noop,
         startOrOpenChat: onStartOrOpenChat,
         notifyChangesToInGameEditor: setEditorHotReloadNeeded,
@@ -1714,6 +1797,7 @@ export const renderAskAiEditorContainer = (
         onCreateProjectFromExample={props.onCreateProjectFromExample}
         onCreateEmptyProject={props.onCreateEmptyProject}
         onOpenLayout={props.onOpenLayout}
+        onOpenExternalLayout={props.onOpenExternalLayout}
         onSceneEventsModifiedOutsideEditor={
           props.onSceneEventsModifiedOutsideEditor
         }
@@ -1730,6 +1814,14 @@ export const renderAskAiEditorContainer = (
         onWillDeleteScene={props.onWillDeleteScene}
         onWillDeleteGameplayTest={props.onWillDeleteGameplayTest}
         onWillDeleteObject={props.onWillDeleteObject}
+        onExtensionsModifiedOutsideEditor={
+          props.onExtensionsModifiedOutsideEditor
+        }
+        onWillDeleteExtensionItem={props.onWillDeleteExtensionItem}
+        onOpenEventsFunctionsExtension={props.onOpenEventsFunctionsExtension}
+        // The variant editor opener also reloads the extensions before opening,
+        // which is what a link to a just-created custom object needs.
+        onOpenCustomObjectEditor={props.onOpenEventBasedObjectVariantEditor}
         onWillInstallExtension={props.onWillInstallExtension}
         onExtensionInstalled={props.onExtensionInstalled}
         onOpenAskAi={props.onOpenAskAi}

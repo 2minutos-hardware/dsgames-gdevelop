@@ -52,6 +52,7 @@ import Text from '../UI/Text';
 import { Trans, t } from '@lingui/macro';
 import IconButton from '../UI/IconButton';
 import PreferencesContext from '../MainFrame/Preferences/PreferencesContext';
+import EventsFunctionsExtensionsContext from '../EventsFunctionsExtensionsLoader/EventsFunctionsExtensionsContext';
 import Cross from '../UI/CustomSvgIcons/Cross';
 import useAlertDialog from '../UI/Alert/useAlertDialog';
 
@@ -159,6 +160,10 @@ export const AskAiStandAloneForm = ({
     () => ({
       onOpenLayout,
       onCreateProject,
+      // The stand-alone form has no external layout or extension editors to open.
+      onOpenExternalLayout: () => {},
+      onOpenEventsFunctionsExtension: () => {},
+      onOpenCustomObjectEditor: () => {},
     }),
     [onOpenLayout, onCreateProject]
   );
@@ -562,6 +567,8 @@ export const AskAiStandAloneForm = ({
       editorFunctionCallResults: Array<EditorFunctionCallResult>,
       options: {|
         createdSceneNames?: Array<string>,
+        // Not opened by the stand-alone form (no editor to open them in).
+        createdExternalLayoutNames?: Array<string>,
         createdProject?: ?gdProject,
       |}
     ) => {
@@ -574,6 +581,10 @@ export const AskAiStandAloneForm = ({
       });
     },
     [onSendMessage]
+  );
+
+  const eventsFunctionsExtensionsState = React.useContext(
+    EventsFunctionsExtensionsContext
   );
 
   const aiRequestsToProcess = React.useMemo(
@@ -598,6 +609,10 @@ export const AskAiStandAloneForm = ({
     onWillDeleteScene: () => Promise.resolve(),
     onWillDeleteGameplayTest: () => Promise.resolve(),
     onWillDeleteObject: () => {},
+    eventsFunctionsExtensionsState,
+    // The stand-alone form has no editor tab to refresh.
+    onExtensionsModifiedOutsideEditor: () => {},
+    onWillDeleteExtensionItem: () => Promise.resolve(),
     onWillInstallExtension,
     onExtensionInstalled,
     isReadyToProcessFunctionCalls: true,

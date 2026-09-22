@@ -33,6 +33,8 @@ import {
   type WillDeleteSceneChanges,
   type WillDeleteGameplayTestChanges,
   type WillDeleteObjectChanges,
+  type ExtensionsOutsideEditorChanges,
+  type WillDeleteExtensionItemChanges,
 } from '../EditorFunctions/OutsideEditorChanges';
 import { type NavigateToEventFromGlobalSearchParams } from '../Utils/Search';
 import { type ResourceManagementProps } from '../ResourcesList/ResourceSource';
@@ -168,6 +170,7 @@ export type EditorTabsPaneCommonProps = {|
         | 'none',
     |}
   ) => void,
+  openExternalLayout: (name: string) => void,
   openTemplateFromTutorial: (tutorialId: string) => Promise<void>,
   openTemplateFromCourseChapter: (
     courseChapter: CourseChapter,
@@ -313,6 +316,12 @@ export type EditorTabsPaneCommonProps = {|
     changes: WillDeleteGameplayTestChanges
   ) => Promise<void>,
   onWillDeleteObject: (changes: WillDeleteObjectChanges) => void,
+  onExtensionsModifiedOutsideEditor: (
+    changes: ExtensionsOutsideEditorChanges
+  ) => void,
+  onWillDeleteExtensionItem: (
+    changes: WillDeleteExtensionItemChanges
+  ) => Promise<void>,
   onWillInstallExtension: (extensionNames: Array<string>) => void,
   onExtensionInstalled: (extensionNames: Array<string>) => void,
   onCreateNewExtensionWithBehavior:
@@ -385,6 +394,7 @@ const EditorTabsPane: React.ComponentType<{
     setPreviewedLayout,
     openExternalEvents,
     openLayout,
+    openExternalLayout,
     openTemplateFromTutorial,
     openTemplateFromCourseChapter,
     previewDebuggerServer,
@@ -440,6 +450,8 @@ const EditorTabsPane: React.ComponentType<{
     onWillDeleteScene,
     onWillDeleteGameplayTest,
     onWillDeleteObject,
+    onExtensionsModifiedOutsideEditor,
+    onWillDeleteExtensionItem,
     onWillInstallExtension,
     onExtensionInstalled,
     onCreateNewExtensionWithBehavior,
@@ -816,6 +828,7 @@ const EditorTabsPane: React.ComponentType<{
                       });
                     },
                     onOpenLayout: openLayout,
+                    onOpenExternalLayout: openExternalLayout,
                     onOpenTemplateFromTutorial: openTemplateFromTutorial,
                     onOpenTemplateFromCourseChapter: openTemplateFromCourseChapter,
                     previewDebuggerServer,
@@ -920,6 +933,8 @@ const EditorTabsPane: React.ComponentType<{
                     onWillDeleteScene: onWillDeleteScene,
                     onWillDeleteGameplayTest: onWillDeleteGameplayTest,
                     onWillDeleteObject: onWillDeleteObject,
+                    onExtensionsModifiedOutsideEditor: onExtensionsModifiedOutsideEditor,
+                    onWillDeleteExtensionItem: onWillDeleteExtensionItem,
                     onWillInstallExtension: onWillInstallExtension,
                     onExtensionInstalled: onExtensionInstalled,
                     onCreateNewExtensionWithBehavior: onCreateNewExtensionWithBehavior,
