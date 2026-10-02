@@ -2,6 +2,7 @@ dsgames-gdevelop is the Gdevelop integration for DSGAMES platform.
 
 https://games.dosminutos.es/editor/
 
-<img width="1920" height="921" alt="Screenshot" src="https://github.com/user-attachments/assets/07001fbf-b4d0-47ce-b0c8-a891aab01fff" />
+<img width="1920" height="921" alt="scr" src="https://github.com/user-attachments/assets/681d961a-63c9-4ab7-ba49-459acde4577d" />
+
 
 Dos Minutos 2026.
