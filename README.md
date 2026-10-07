@@ -1,4 +1,4 @@
-dsgames-gdevelop is the Gdevelop integration for DSGAMES platform.
+dsgames-gdevelop is the Gdevelop integration for DSGAMES.
 
 https://games.dosminutos.es/editor/
 
