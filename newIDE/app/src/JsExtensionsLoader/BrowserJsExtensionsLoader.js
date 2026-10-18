@@ -42,6 +42,12 @@ const jsExtensions = [
     objectsRenderingServiceModules: {},
   },
   {
+    name: 'DSGAMES',
+    // $FlowFixMe[cannot-resolve-module]
+    extensionModule: require('GDJS-for-web-app-only/Runtime/Extensions/DSGAMES/JsExtension.js'),
+    objectsRenderingServiceModules: {},
+  },
+  {
     name: 'SaveState',
     // $FlowFixMe[cannot-resolve-module]
     extensionModule: require('GDJS-for-web-app-only/Runtime/Extensions/SaveState/JsExtension.js'),

@@ -31,7 +31,10 @@ module.exports = {
         'Online multiplayer lobbies, object sync, variable sync, player ownership. Up to 8 players.'
       )
       .setExtensionHelpPath('/all-features/multiplayer')
-      .setCategory('Players');
+      .setCategory('Players')
+      // DSGAMES fork: hidden in new projects - it needs GDevelop's cloud
+      // lobbies and accounts. Use the DSGAMES extension instead.
+      .markAsDeprecatedSince('5.0.0');
     extension
       .addInstructionOrExpressionGroupMetadata(_('Multiplayer'))
       .setIcon('JsPlatform/Extensions/multiplayer.svg');
