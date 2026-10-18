@@ -64,6 +64,12 @@ const PublishToDSGAMESDialog = ({ project, onClose }: Props): React.Node => {
         return;
       }
 
+      // Games published to DSGAMES never show the "Made with GDevelop"
+      // watermark. Upstream only lets subscribers turn it off, which isn't
+      // possible from DSGAMES. Set before exporting so both the build and
+      // the saved project_json have it off.
+      project.getWatermark().showGDevelopWatermark(false);
+
       const context = {
         project,
         exportState: null,
