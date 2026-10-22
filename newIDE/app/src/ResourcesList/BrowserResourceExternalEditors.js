@@ -19,7 +19,6 @@ import {
   downloadUrlsToBlobs,
   type ItemResult,
 } from '../Utils/BlobDownloader';
-import { showWarningBox } from '../UI/Messages/MessageBox';
 import { displayBlackLoadingScreenOrThrow } from '../Utils/BrowserExternalWindowUtils';
 import { UserCancellationError } from '../LoginProvider/Utils';
 import { triggerOnResourceExternallyChanged } from '../MainFrame/ResourcesWatcher';
@@ -290,6 +289,20 @@ const editWithBrowserExternalEditor = async ({
     }
   );
 
+  // DSGAMES: projects are always local (no GDevelop cloud - upstream refused
+  // to open Piskel/Jfxr/Yarn at all outside the 'Cloud' storage provider). A
+  // "blob:" URL only lives as long as this tab, so store the edited files in
+  // the project itself as data: URIs, like LocalFileResourceUploader does for
+  // imported files. Opening them again in the editor and exporting both go
+  // through fetch(), which reads data: URIs natively.
+  await Promise.all(
+    modifiedResources.map(async ({ resource, blobUrl }) => {
+      if (!blobUrl) return;
+      const blob = await (await fetch(blobUrl)).blob();
+      resource.setFile(await convertBlobToDataURL(blob));
+    })
+  );
+
   // Ask the project to persist the resources ("blob urls" will be either uploaded
   // or saved locally).
   try {
@@ -355,8 +368,6 @@ const editWithBrowserExternalEditor = async ({
   };
 };
 
-const cloudProjectWarning = t`You need to save this project as a cloud project to install this asset. Please save your project and try again.`;
-
 /**
  * Open a window showing a black "loading..." screen. It's important this is done
  * NOT in an asynchronous way but JUST after a click. Otherwise, browsers like Safari
@@ -396,14 +407,6 @@ const editors: Array<ResourceExternalEditor> = [
     editDisplayName: t`Edit with Piskel`,
     kind: 'image',
     edit: async options => {
-      if (options.getStorageProvider().internalName !== 'Cloud') {
-        const { i18n } = options;
-        showWarningBox(i18n._(cloudProjectWarning), {
-          delayToNextTick: true,
-        });
-        return null;
-      }
-
       const externalEditorWindow = immediatelyOpenLoadingWindowForExternalEditor();
       // $FlowFixMe[incompatible-type]
       return await editWithBrowserExternalEditor({
@@ -422,14 +425,6 @@ const editors: Array<ResourceExternalEditor> = [
     editDisplayName: t`Edit with Jfxr`,
     kind: 'audio',
     edit: async options => {
-      if (options.getStorageProvider().internalName !== 'Cloud') {
-        const { i18n } = options;
-        showWarningBox(i18n._(cloudProjectWarning), {
-          delayToNextTick: true,
-        });
-        return null;
-      }
-
       const externalEditorWindow = immediatelyOpenLoadingWindowForExternalEditor();
       return await editWithBrowserExternalEditor({
         options,
@@ -447,14 +442,6 @@ const editors: Array<ResourceExternalEditor> = [
     editDisplayName: t`Edit with Yarn`,
     kind: 'json',
     edit: async options => {
-      if (options.getStorageProvider().internalName !== 'Cloud') {
-        const { i18n } = options;
-        showWarningBox(i18n._(cloudProjectWarning), {
-          delayToNextTick: true,
-        });
-        return null;
-      }
-
       const externalEditorWindow = immediatelyOpenLoadingWindowForExternalEditor();
       return await editWithBrowserExternalEditor({
         options,
