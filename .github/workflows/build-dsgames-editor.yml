@@ -1,0 +1,51 @@
+# DSGAMES: builds the web editor (newIDE/app) on GitHub's machines and keeps
+# the result as a downloadable artifact ("dsgames-editor", a zip of
+# newIDE/app/build/). The production server can't build it itself: the
+# production bundle needs ~2.5 GB of memory and the server has 3.2 GB
+# shared with DSGAMES, so the kernel's OOM killer kept stopping the build
+# (and the services next to it).
+#
+# Deploying stays manual: download the artifact, unzip it into
+# ~/dsgames-editor-staging, check it, then copy it over
+# /var/www/games.dosminutos.es/editor/ (keeping a backup of the old one).
+
+name: Build DSGAMES editor
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dsgames-fork]
+    paths:
+      - "newIDE/app/**"
+      - "GDJS/**"
+      - "Extensions/**"
+      - ".github/workflows/build-dsgames-editor.yml"
+
+jobs:
+  build-editor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+          cache-dependency-path: "newIDE/app/package-lock.json"
+
+      - name: Install newIDE dependencies
+        run: npm ci --no-audit --no-fund
+        working-directory: newIDE/app
+
+      - name: Build the editor
+        run: npm run build
+        working-directory: newIDE/app
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsgames-editor
+          path: newIDE/app/build/
+          retention-days: 30
