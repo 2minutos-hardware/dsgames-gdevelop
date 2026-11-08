@@ -127,7 +127,7 @@ module.exports = {
         'CopyPlayersToVariable',
         _('Copy the room to a variable'),
         _(
-          'Fill a variable with an array of everyone in the room (including yourself). Each child has: id, username, isMe (true for you) and state (what that player shared). Loop over it with a "For each child variable" event.'
+          'Fill a variable with an array of everyone in the room (including yourself). Each child has: id, username, isMe (true for you), state (what that player shared) and sentAt (when they shared it, on the server clock: ServerTime() - sentAt is how old it is). Loop over it with a "For each child variable" event.'
         ),
         _('Copy the room to _PARAM0_'),
         _('Multiplayer'),
@@ -150,6 +150,20 @@ module.exports = {
       .getCodeExtraInformation()
       .setIncludeFile(INCLUDE_FILE)
       .setFunctionName('gdjs.dsgames.getPlayerCount');
+
+    extension
+      .addExpression(
+        'ServerTime',
+        _('Server time'),
+        _(
+          'The time on the DSGAMES server, in seconds - the same for every player, whatever their device clock says. ServerTime() - sentAt of a player in the room is how old their shared state is, so you can move what they shared to where it is now.'
+        ),
+        _('Multiplayer'),
+        ICON
+      )
+      .getCodeExtraInformation()
+      .setIncludeFile(INCLUDE_FILE)
+      .setFunctionName('gdjs.dsgames.getServerTime');
 
     return extension;
   },

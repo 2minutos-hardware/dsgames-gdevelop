@@ -8,7 +8,12 @@ namespace gdjs {
    */
   export namespace dsgames {
     type DSGamesUser = { id: number; username: string };
-    type DSGamesPlayer = { id: number; username: string; state: any };
+    type DSGamesPlayer = {
+      id: number;
+      username: string;
+      state: any;
+      sentAt?: number;
+    };
 
     /** The server drops anything above 20 messages/s, stay well under. */
     const SEND_INTERVAL_MS = 100;
@@ -21,6 +26,8 @@ namespace gdjs {
     let hasJoinedRoom = false;
     let pendingStateJSON: string | null = null;
     let lastSentStateJSON: string | null = null;
+    /** Server clock minus this device's clock, in seconds (dsgames:clock). */
+    let clockOffset: number | null = null;
 
     const postToPage = (message: object) => {
       if (typeof window === 'undefined' || window.parent === window) return;
@@ -37,6 +44,11 @@ namespace gdjs {
           user = data.user || null;
         } else if (data.type === 'dsgames:state') {
           players = Array.isArray(data.players) ? data.players : [];
+        } else if (
+          data.type === 'dsgames:clock' &&
+          typeof data.offset === 'number'
+        ) {
+          clockOffset = data.offset;
         }
       });
 
@@ -67,6 +79,15 @@ namespace gdjs {
     export const getUserId = (): number => (user ? user.id : 0);
 
     export const getPlayerCount = (): number => players.length;
+
+    /**
+     * The time on the DSGAMES server's clock, in seconds - the same for every
+     * player, whatever their device's clock says. Compare it with a player's
+     * sentAt to know how old their state is. Falls back to this device's
+     * clock until the page has sent the server's (or outside DSGAMES).
+     */
+    export const getServerTime = (): number =>
+      Date.now() / 1000 + (clockOffset || 0);
 
     export const joinRoom = (): void => {
       if (hasJoinedRoom) return;
@@ -105,6 +126,7 @@ namespace gdjs {
           username: player.username,
           isMe: user !== null && player.id === user.id,
           state: player.state || {},
+          sentAt: player.sentAt || 0,
         }))
       );
     };
