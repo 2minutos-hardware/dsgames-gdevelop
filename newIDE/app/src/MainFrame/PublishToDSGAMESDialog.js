@@ -8,6 +8,7 @@ import Text from '../UI/Text';
 import TextField from '../UI/TextField';
 import { ColumnStackLayout } from '../UI/Layout';
 import { browserHTML5ExportPipeline } from '../ExportAndShare/BrowserExporters/BrowserHTML5Export';
+import { type ExportPipelineContext } from '../ExportAndShare/ExportPipeline.flow';
 import { serializeToJSON } from '../Utils/Serializer';
 
 type Props = {|
@@ -70,10 +71,12 @@ const PublishToDSGAMESDialog = ({ project, onClose }: Props): React.Node => {
       // the saved project_json have it off.
       project.getWatermark().showGDevelopWatermark(false);
 
-      const context = {
+      const context: ExportPipelineContext<null> = {
         project,
         exportState: null,
         updateStepProgress: () => {},
+        // $FlowFixMe[incompatible-type] - DSGAMES: the HTML5 export doesn't
+        // translate anything, a stand-in for i18n is enough.
         i18n: { _: (message: any) => message },
       };
       const prepared = await browserHTML5ExportPipeline.prepareExporter(
