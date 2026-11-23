@@ -75,8 +75,9 @@ const PublishToDSGAMESDialog = ({ project, onClose }: Props): React.Node => {
         project,
         exportState: null,
         updateStepProgress: () => {},
-        // $FlowFixMe[incompatible-type] - DSGAMES: the HTML5 export doesn't
-        // translate anything, a stand-in for i18n is enough.
+        // DSGAMES: the HTML5 export doesn't translate anything, a stand-in
+        // for i18n is enough.
+        // $FlowFixMe[incompatible-type]
         i18n: { _: (message: any) => message },
       };
       const prepared = await browserHTML5ExportPipeline.prepareExporter(

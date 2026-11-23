@@ -35,8 +35,9 @@ import { isServiceWorkerSupported } from './ServiceWorkerSetup';
 import { ensureBrowserSWPreviewSession } from './ExportAndShare/BrowserExporters/BrowserSWPreviewLauncher/BrowserSWPreviewIndexedDB';
 
 // DSGAMES: only keep the local HTML5 export (no cloud builds for mobile/desktop).
-const dsgamesOnlyHtml5 = <T: { +key: string }>(exporters: Array<T>): Array<T> =>
-  exporters.filter(e => e.key === 'webexport');
+const dsgamesOnlyHtml5 = <T: { +key: string, ... }>(
+  exporters: Array<T>
+): Array<T> => exporters.filter(e => e.key === 'webexport');
 
 export const create = (authentication: Authentication): React.Node => {
   Window.setUpContextMenu();
