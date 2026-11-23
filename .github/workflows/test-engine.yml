@@ -85,9 +85,11 @@ jobs:
             GDJS/package-lock.json
 
       # Also downloads the libGD.js pinned in scripts/import-libGD.js.
+      # `npm install`, like GDevelop's CI: newIDE/app/package-lock.json isn't
+      # always in sync with package.json, which `npm ci` refuses.
       - name: Install
         working-directory: newIDE/app
-        run: npm ci --no-audit --no-fund
+        run: npm install --no-audit --no-fund
 
       - name: Check types (Flow)
         working-directory: newIDE/app
@@ -116,7 +118,7 @@ jobs:
 
       - name: Install
         working-directory: newIDE/app
-        run: npm ci --no-audit --no-fund
+        run: npm install --no-audit --no-fund
 
       - name: Build
         working-directory: newIDE/app
