@@ -191,7 +191,8 @@ export default function TabsTitlebar({
   );
 
   // DSGAMES: Ask AI depends on GDevelop's paid cloud account features, hide it.
-  const shouldDisplayAskAi = false;
+  // (Typed as a boolean so that Flow doesn't flag the code below as dead.)
+  const shouldDisplayAskAi: boolean = false;
   const isAskAiIconAnimated = useIsAskAiIconAnimated(shouldDisplayAskAi);
 
   const [isGlowing, setIsGlowing] = React.useState(false);

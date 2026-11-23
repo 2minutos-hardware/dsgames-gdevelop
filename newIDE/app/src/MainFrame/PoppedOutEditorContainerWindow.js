@@ -165,6 +165,9 @@ const PoppedOutEditorContainerWindow = (props: Props): React.Node => {
                     toolbarButtons={props.toolbarButtons}
                     projectPath={props.projectPath}
                     triggerNpmScript={props.triggerNpmScript}
+                    // DSGAMES: needed by the "Publish to DSGAMES" button (not
+                    // shown here: showPreviewAndShareButtons is false).
+                    project={props.currentProject}
                   />
                 )}
               />

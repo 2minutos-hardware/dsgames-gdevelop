@@ -73,6 +73,8 @@ const defaultProps: MainFrameToolbarProps = {
   toolbarButtons: [],
   projectPath: '',
   triggerNpmScript: () => {},
+  // DSGAMES: the "Publish to DSGAMES" button needs the project.
+  project: null,
 };
 
 export const NoProjectOpen = (): React.Node => (

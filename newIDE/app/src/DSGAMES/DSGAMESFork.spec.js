@@ -1,14 +1,15 @@
-// @flow
 /**
  * DSGAMES fork: checks that our changes to GDevelop are still in place.
  *
  * They matter most on GDevelop updates (scripts/dsgames-update-gdevelop.sh):
  * a merge can apply without conflicts and still drop one of our changes, or
  * bring upstream's analytics back through a file we never touched.
+ *
+ * Not checked by Flow: it reads the repository with Node (fs, path).
  */
 const fs = require('fs');
 const path = require('path');
-const gd: libGDevelop = global.gd;
+const gd = global.gd;
 
 const repositoryRoot = path.join(__dirname, '../../../..');
 const readRepositoryFile = (filePath: string): string =>

@@ -96,7 +96,11 @@ export function registerBrowserSWPreviewWorker() {
     // the correct base for its own assets is the <base> tag the page sets
     // at load time, not whatever path happens to be in the address bar -
     // same reasoning as BrowserS3GDJSFinder.js's gdjsRoot resolution.
-    const swUrl = new URL('service-worker.js', document.baseURI).href;
+    // DSGAMES: baseURI is never null in a page, the fallback is for Flow.
+    const swUrl = new URL(
+      'service-worker.js',
+      document.baseURI || window.location.href
+    ).href;
     serviceWorker
       .register(swUrl, { scope: '/browser_sw_preview/' })
       .catch(error => {
