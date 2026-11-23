@@ -12,6 +12,8 @@ import { CompactObjectPropertiesEditor } from '../../../ObjectEditor/CompactObje
 import SerializedObjectDisplay from '../../SerializedObjectDisplay';
 import DragAndDropContextProvider from '../../../UI/DragAndDrop/DragAndDropContextProvider';
 import fakeResourceManagementProps from '../../FakeResourceManagement';
+import { getRealCube3dObject } from '../../RealCube3dObject';
+import { getOrCreateObjectWithNotSynchronizedBehavior } from '../../MultiplayerObjects';
 
 export default {
   title: 'LayoutEditor/CompactObjectPropertiesEditor',
@@ -107,6 +109,55 @@ export const Cube3d = (): React.Node => (
   </DragAndDropContextProvider>
 );
 
+export const RealCube3d = (): React.Node => {
+  const cube3dObject = getRealCube3dObject();
+  return (
+    <DragAndDropContextProvider>
+      <I18n>
+        {({ i18n }) => (
+          <SerializedObjectDisplay object={cube3dObject}>
+            <CompactObjectPropertiesEditor
+              i18n={i18n}
+              project={testProject.project}
+              layout={testProject.testLayout}
+              eventsFunctionsExtension={null}
+              eventsBasedObject={null}
+              objectsContainer={testProject.testLayout.getObjects()}
+              globalObjectsContainer={testProject.project.getObjects()}
+              initialInstances={testProject.testLayout.getInitialInstances()}
+              layersContainer={testProject.testLayout.getLayers()}
+              projectScopedContainersAccessor={
+                testProject.testSceneProjectScopedContainersAccessor
+              }
+              isVariableListLocked={false}
+              isBehaviorListLocked={false}
+              resourceManagementProps={fakeResourceManagementProps}
+              onUpdateBehaviorsSharedData={action(
+                'onUpdateBehaviorsSharedData'
+              )}
+              objects={[cube3dObject]}
+              onEditObject={action('onEditObject')}
+              onObjectsModified={action('onObjectsModified')}
+              onEffectAdded={action('onEffectAdded')}
+              onOpenEventBasedObjectVariantEditor={action(
+                'onOpenEventBasedObjectVariantEditor'
+              )}
+              onDeleteEventsBasedObjectVariant={action(
+                'onDeleteEventsBasedObjectVariant'
+              )}
+              onWillInstallExtension={action('onWillInstallExtension')}
+              onExtensionInstalled={action('onExtensionInstalled')}
+              onCreateNewExtensionWithBehavior={action(
+                'onCreateNewExtensionWithBehavior'
+              )}
+            />
+          </SerializedObjectDisplay>
+        )}
+      </I18n>
+    </DragAndDropContextProvider>
+  );
+};
+
 export const TextInput = (): React.Node => (
   <DragAndDropContextProvider>
     <I18n>
@@ -193,4 +244,70 @@ export const CustomObject = (): React.Node => (
       )}
     </I18n>
   </DragAndDropContextProvider>
+);
+
+const CompactObjectPropertiesEditorForObject = ({
+  object,
+}: {|
+  object: gdObject,
+|}) => (
+  <DragAndDropContextProvider>
+    <I18n>
+      {({ i18n }) => (
+        <SerializedObjectDisplay object={object}>
+          <CompactObjectPropertiesEditor
+            i18n={i18n}
+            project={testProject.project}
+            layout={testProject.testLayout}
+            eventsFunctionsExtension={null}
+            eventsBasedObject={null}
+            objectsContainer={testProject.testLayout.getObjects()}
+            globalObjectsContainer={testProject.project.getObjects()}
+            initialInstances={testProject.testLayout.getInitialInstances()}
+            layersContainer={testProject.testLayout.getLayers()}
+            projectScopedContainersAccessor={
+              testProject.testSceneProjectScopedContainersAccessor
+            }
+            isVariableListLocked={false}
+            isBehaviorListLocked={false}
+            resourceManagementProps={fakeResourceManagementProps}
+            onUpdateBehaviorsSharedData={action('onUpdateBehaviorsSharedData')}
+            objects={[object]}
+            onEditObject={action('onEditObject')}
+            onObjectsModified={action('onObjectsModified')}
+            onEffectAdded={action('onEffectAdded')}
+            onOpenEventBasedObjectVariantEditor={action(
+              'onOpenEventBasedObjectVariantEditor'
+            )}
+            onDeleteEventsBasedObjectVariant={action(
+              'onDeleteEventsBasedObjectVariant'
+            )}
+            onWillInstallExtension={action('onWillInstallExtension')}
+            onExtensionInstalled={action('onExtensionInstalled')}
+            onCreateNewExtensionWithBehavior={action(
+              'onCreateNewExtensionWithBehavior'
+            )}
+          />
+        </SerializedObjectDisplay>
+      )}
+    </I18n>
+  </DragAndDropContextProvider>
+);
+
+export const WithMultiplayerBehavior = (): React.Node => (
+  <CompactObjectPropertiesEditorForObject
+    object={getOrCreateObjectWithNotSynchronizedBehavior({
+      name: 'MyMultiplayerObject',
+      hasMultiplayerBehavior: true,
+    })}
+  />
+);
+
+export const WithoutMultiplayerBehavior = (): React.Node => (
+  <CompactObjectPropertiesEditorForObject
+    object={getOrCreateObjectWithNotSynchronizedBehavior({
+      name: 'MyObjectWithoutMultiplayerBehavior',
+      hasMultiplayerBehavior: false,
+    })}
+  />
 );

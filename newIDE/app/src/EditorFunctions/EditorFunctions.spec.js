@@ -135,7 +135,7 @@ describe('editorFunctions', () => {
       );
 
       expect(result.message).toMatchInlineSnapshot(
-        `"Created object \\"SomeNewObject\\" (type \\"Sprite\\", scene \\"TestScene\\") from asset store. Used asset \\"Dino Doux\\" (6 animation(s)). This object type has no editable object properties."`
+        `"Created object \\"SomeNewObject\\" (type \\"Sprite\\", scene \\"TestScene\\") from asset store. Used asset \\"Dino Doux\\" (6 animation(s)). This object type has no editable object properties: its animations and their images are in its raw JSON (\`inspect_object_properties_effects\` with \`include_raw_json\`, then \`raw_json\` of \`change_object_properties_effects\`)."`
       );
       expect(result.success).toBe(true);
       expect(onObjectsModifiedOutsideEditor).toHaveBeenCalledWith({
@@ -2868,7 +2868,9 @@ describe('editorFunctions', () => {
 
       expect(result.success).toBe(false);
       expect(result.message).toEqual(
-        expect.stringContaining('existing_instance_ids')
+        expect.stringContaining(
+          '"Player" has no instance in scene "TestScene", so nothing was changed.'
+        )
       );
       expect(getInstancePositions(testScene)).toEqual([]);
     });
@@ -2947,8 +2949,13 @@ describe('editorFunctions', () => {
         });
 
         expect(result.success).toBe(false);
+        // With the none brush, the call targets every instance of the object.
         expect(result.message).toEqual(
-          expect.stringContaining('Nothing to do')
+          expect.stringContaining(
+            brush_kind === 'none'
+              ? '"Player" has no instance in scene "TestScene", so nothing was changed.'
+              : 'Nothing to do'
+          )
         );
         expect(getInstancePositions(testScene)).toEqual([]);
       }
@@ -2969,7 +2976,9 @@ describe('editorFunctions', () => {
 
       expect(result.success).toBe(false);
       expect(result.message).toEqual(
-        expect.stringContaining('cannot create new ones')
+        expect.stringContaining(
+          '"Player" has no instance in scene "TestScene", so nothing was changed.'
+        )
       );
       expect(getInstancePositions(testScene)).toEqual([]);
     });
@@ -3747,7 +3756,11 @@ describe('editorFunctions', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.message).toEqual(expect.stringContaining('Nothing to do'));
+      expect(result.message).toEqual(
+        expect.stringContaining(
+          '"Player" has no instance in scene "TestScene", so nothing was changed.'
+        )
+      );
       expect(getInstancePositions(testScene)).toEqual([]);
     });
 

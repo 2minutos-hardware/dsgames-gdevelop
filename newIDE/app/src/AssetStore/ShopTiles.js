@@ -488,18 +488,32 @@ export const PrivateGameTemplateTile = ({
         noBorder
       >
         <Column noMargin expand noOverflowParent>
-          <ImageWithFallback
-            key={privateGameTemplateListingData.name}
-            style={{
-              ...styles.previewImage,
-              background: gdevelopTheme.paper.backgroundColor.light,
-            }}
-            src={privateGameTemplateListingData.thumbnailUrls[0]}
-            alt={`Preview image of game template ${
-              privateGameTemplateListingData.name
-            }`}
-            loading="lazy"
-          />
+          <div style={styles.thumbnailContainer}>
+            <ImageWithFallback
+              key={privateGameTemplateListingData.name}
+              style={{
+                ...styles.previewImage,
+                background: gdevelopTheme.paper.backgroundColor.light,
+              }}
+              src={privateGameTemplateListingData.thumbnailUrls[0]}
+              alt={`Preview image of game template ${
+                privateGameTemplateListingData.name
+              }`}
+              loading="lazy"
+            />
+            {privateGameTemplateListingData.redeemConditions && !owned && (
+              <div style={styles.redeemableContainer}>
+                <img
+                  src="res/small-diamond.svg"
+                  style={styles.redeemableDiamondIcon}
+                  alt="diamond"
+                />
+                <Text color="inherit" noMargin>
+                  <Trans>Claim this template</Trans>
+                </Text>
+              </div>
+            )}
+          </div>
           <div style={styles.priceTagContainer}>
             <ProductPriceTag
               productListingData={privateGameTemplateListingData}
@@ -664,7 +678,6 @@ export const ExampleTile = ({
   style,
   customTitle,
   centerTitle,
-  useQuickCustomizationThumbnail,
   disabled,
 }: {|
   exampleShortHeader: ExampleShortHeader | null,
@@ -673,7 +686,6 @@ export const ExampleTile = ({
   style?: any,
   customTitle?: string,
   centerTitle?: boolean,
-  useQuickCustomizationThumbnail?: boolean,
   disabled?: boolean,
 |}): React.Node => {
   const { isMobile } = useResponsiveWindowSize();
@@ -682,15 +694,10 @@ export const ExampleTile = ({
     () => {
       if (!exampleShortHeader) return '';
       const firstPreviewUrl = exampleShortHeader.previewImageUrls[0] || '';
-      const quickCustomizationImageUrl =
-        exampleShortHeader.quickCustomizationImageUrl;
-      if (useQuickCustomizationThumbnail && quickCustomizationImageUrl) {
-        return quickCustomizationImageUrl;
-      }
 
       return firstPreviewUrl;
     },
-    [exampleShortHeader, useQuickCustomizationThumbnail]
+    [exampleShortHeader]
   );
 
   return (

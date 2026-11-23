@@ -234,6 +234,7 @@ export const ObjectsListStory = (): React.Node => {
             onImportAssets={action('On import assets')}
             onAddObjectInstance={action('On add instance to the scene')}
             onObjectCreated={action('On object created')}
+            onEffectAdded={action('On effect added')}
             onObjectEdited={action('On object edited')}
             getValidatedObjectOrGroupName={(newName: string) => newName}
             onDeleteObjects={(objectsWithContext, cb) => cb(true)}
@@ -319,13 +320,25 @@ export const ProjectManagerStory = (): React.Node => {
                 )}
                 onSceneAdded={action('onSceneAdded')}
                 onExternalLayoutAdded={action('onExternalLayoutAdded')}
-                onDeleteLayout={action('onDeleteLayout')}
-                onDeleteExternalLayout={action('onDeleteExternalLayout')}
+                onDeleteLayouts={async () => {
+                  action('onDeleteLayouts')();
+                  return false;
+                }}
+                onDeleteExternalLayouts={async () => {
+                  action('onDeleteExternalLayouts')();
+                  return false;
+                }}
                 onDeleteEventsFunctionsExtension={action(
                   'onDeleteEventsFunctionsExtension'
                 )}
-                onDeleteExternalEvents={action('onDeleteExternalEvents')}
-                onDeleteGameplayTest={action('onDeleteGameplayTest')}
+                onDeleteExternalEventsList={async () => {
+                  action('onDeleteExternalEventsList')();
+                  return false;
+                }}
+                onDeleteGameplayTests={async () => {
+                  action('onDeleteGameplayTests')();
+                  return false;
+                }}
                 onRenameGameplayTest={action('onRenameGameplayTest')}
                 onOpenGameplayTest={action('onOpenGameplayTest')}
                 onRunGameplayTest={action('onRunGameplayTest')}

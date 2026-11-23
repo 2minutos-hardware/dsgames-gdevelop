@@ -88,6 +88,7 @@ declare class gdProject {
   removeExternalEvents(name: string): void;
   getExternalEventsPosition(name: string): number;
   getTests(): gdTestsContainer;
+  getNamedEasings(): gdNamedEasingsContainer;
   hasExternalLayoutNamed(name: string): boolean;
   getExternalLayout(name: string): gdExternalLayout;
   getExternalLayoutAt(index: number): gdExternalLayout;
@@ -124,6 +125,9 @@ declare class gdProject {
   getWholeProjectDiagnosticReport(): gdWholeProjectDiagnosticReport;
   static isNameSafe(name: string): boolean;
   static getSafeName(name: string): string;
+  getLayoutsRootFolder(): gdLayoutFolderOrLayout;
+  getExternalLayoutsRootFolder(): gdExternalLayoutFolderOrExternalLayout;
+  getExternalEventsRootFolder(): gdExternalEventsFolderOrExternalEvents;
   delete(): void;
   ptr: number;
 };

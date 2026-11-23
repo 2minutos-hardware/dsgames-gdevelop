@@ -13,6 +13,8 @@ export const setCurrentlyRunningInAppTutorial = (
   tutorial: string | null
 ): string | null => tutorial;
 
+export const setCurrentProjectUuid = (projectUuid: string | null) => {};
+
 const makeCanSendEvent = (options: {| minimumTimeBetweenEvents: number |}) => {
   const lastSentEventTimestamps = {};
   return (eventName: string) => {
@@ -469,17 +471,8 @@ export const sendEventsExtractedAsFunction = (metadata: {|
   recordEvent('events-extracted-as-function', metadata);
 };
 
-const canSendPreviewStarted = makeCanSendEvent({
-  minimumTimeBetweenEvents: 1000 * 60 * 60 * 6, // Only once every 6 hours per preview kind (outside quick customization).
-});
-
-const canSendPreviewStartedForQuickCustomization = makeCanSendEvent({
-  minimumTimeBetweenEvents: 1000 * 60 * 10, // Only once every 10 minutes per game for quick customization.
-});
-
 export const sendPreviewStarted = (metadata: {|
   projectUuid: string,
-  quickCustomizationGameId: string | null,
   networkPreview: boolean,
   numberOfWindows: number,
   hotReload: boolean,
@@ -488,48 +481,7 @@ export const sendPreviewStarted = (metadata: {|
   forceDiagnosticReport: boolean,
   previewLaunchDuration: number,
 |}) => {
-  if (
-    metadata.quickCustomizationGameId &&
-    !canSendPreviewStartedForQuickCustomization(
-      metadata.quickCustomizationGameId
-    )
-  ) {
-    return;
-  }
-
-  if (
-    !metadata.quickCustomizationGameId &&
-    !canSendPreviewStarted(
-      JSON.stringify({
-        networkPreview: metadata.networkPreview,
-        hotReload: metadata.hotReload,
-        projectDataOnlyExport: metadata.projectDataOnlyExport,
-        fullLoadingScreen: metadata.fullLoadingScreen,
-        forceDiagnosticReport: metadata.forceDiagnosticReport,
-      })
-    )
-  ) {
-    return;
-  }
-
   recordEvent('preview-started', metadata);
-};
-
-const canSendQuickCustomizationProgress = makeCanSendEvent({
-  // Send only one event per step every minute, to avoid sending too many events.
-  minimumTimeBetweenEvents: 1000 * 60 * 1,
-});
-
-export const sendQuickCustomizationProgress = (metadata: {|
-  stepName: string,
-  sourceGameId: string,
-  projectName: string,
-|}) => {
-  if (!canSendQuickCustomizationProgress(metadata.stepName)) {
-    return;
-  }
-
-  recordEvent('quick-customization-progress', metadata);
 };
 
 export const sendSocialFollowUpdated = (
@@ -678,4 +630,24 @@ export const sendAiRequestMessageSent = (metadata: {|
   outputLength: number,
 |}) => {
   recordEvent('ai-request-message-sent', metadata);
+};
+
+export const sendMcpToolCalled = (metadata: {|
+  toolName: string,
+  clientName: string | null,
+  success: boolean,
+  durationMs: number,
+  transport: 'http' | 'stdio',
+|}) => {
+  recordEvent('mcp-tool-called', metadata);
+};
+
+export const sendMcpAgentConnected = (metadata: {|
+  clientName: string | null,
+  clientVersion: string | null,
+  transport: 'http' | 'stdio',
+  isReadOnly: boolean,
+  hasOpenedProject: boolean | null,
+|}) => {
+  recordEvent('mcp-agent-connected', metadata);
 };

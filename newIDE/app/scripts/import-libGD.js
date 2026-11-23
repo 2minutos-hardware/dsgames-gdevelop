@@ -169,7 +169,7 @@ if (shell.test('-f', path.join(sourceDirectory, 'libGD.js'))) {
   // this fork is ever rebased onto a newer upstream commit, update this
   // hash to match (`git merge-base HEAD upstream/master`).
   const DSGAMES_PINNED_UPSTREAM_COMMIT =
-    'df9de041f349f8b3e77b401892e0025b90455883';
+    'cfaccd2c20bba2b43fea529523042249c90b9a41';
 
   const downloadCommitLibGdJsCascade = () => {
     // Try to download the latest libGD.js, fallback to previous or master ones

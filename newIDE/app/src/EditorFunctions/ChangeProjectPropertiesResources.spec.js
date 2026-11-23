@@ -1,6 +1,7 @@
 // @flow
 import { editorFunctions, type EditorFunctionGenericOutput } from './index';
 import { makeFakeLaunchFunctionOptionsWithProject } from './TestHelpers';
+import { type ResourceFilesStorage } from './AttachmentResources';
 
 const gd: libGDevelop = global.gd;
 
@@ -379,5 +380,200 @@ describe('change_project_properties_resources', () => {
       'No change requested for resource "hero.png": set `new_resource_name` or `delete_this_resource`. Skipped.'
     );
     expect(project.getResourcesManager().hasResource('hero.png')).toBe(true);
+  });
+
+  describe('files attached by the user', () => {
+    // The browser `File` is not in the test environment (nor in Node 16):
+    // a named Blob is what is read of it.
+    const { Blob: NodeBlob } = require('buffer');
+    const makeFile = (content: string, name: string, type: string) => {
+      const file = new NodeBlob([content], { type });
+      file.name = name;
+      return file;
+    };
+    const logoFile = makeFile('fake png', 'logo.png', 'image/png');
+    const fontFile = makeFile('fake ttf', 'title.ttf', 'font/ttf');
+
+    /** Stores the in-memory files like the cloud or local storage would. */
+    const storeResourceFilesInProject = async (): Promise<ResourceFilesStorage> => {
+      const resourcesManager = project.getResourcesManager();
+      resourcesManager
+        .getAllResourceNames()
+        .toJSArray()
+        .forEach(name => {
+          const resource = resourcesManager.getResource(name);
+          if (resource.getFile().startsWith('blob:'))
+            resource.setFile(`https://project-resources/${name}`);
+        });
+      return 'stored';
+    };
+
+    const launchWithAttachments = (
+      args: Object,
+      storeResourceFiles: () => Promise<ResourceFilesStorage> = storeResourceFilesInProject
+    ) =>
+      editorFunctions.change_project_properties_resources.launchFunction({
+        ...makeFakeLaunchFunctionOptionsWithProject(project),
+        attachmentsForResources: {
+          getFiles: async attachmentIds => {
+            const files: { [attachmentId: string]: ?File } = {};
+            attachmentIds.forEach(attachmentId => {
+              files[attachmentId] =
+                attachmentId === 'logo-id'
+                  ? logoFile
+                  : attachmentId === 'font-id'
+                  ? fontFile
+                  : null;
+            });
+            return files;
+          },
+          storeResourceFiles,
+        },
+        args,
+      });
+
+    it('adds attached files as new resources, with a unique name', async () => {
+      addProjectResources();
+
+      const result: EditorFunctionGenericOutput = await launchWithAttachments({
+        added_resources: [
+          { attachment_id: 'logo-id', resource_name: 'hero.png' },
+          { attachment_id: 'font-id' },
+        ],
+      });
+
+      expect(result.success).toBe(true);
+      const resourcesManager = project.getResourcesManager();
+      expect(resourcesManager.getResource('hero2.png').getKind()).toBe('image');
+      expect(resourcesManager.getResource('hero2.png').getFile()).toBe(
+        'https://project-resources/hero2.png'
+      );
+      expect(resourcesManager.getResource('title.ttf').getKind()).toBe('font');
+      expect(result.message).toContain(
+        'Added the image resource "hero2.png" (from the attached file "logo.png").'
+      );
+      // The previous resource with this name is untouched.
+      expect(resourcesManager.getResource('hero.png').getFile()).toBe(
+        'assets/hero.png'
+      );
+    });
+
+    it('replaces the file of an existing resource, keeping its name', async () => {
+      addProjectResources();
+
+      const result: EditorFunctionGenericOutput = await launchWithAttachments({
+        changed_resources: [
+          {
+            resource_name: 'hero.png',
+            replace_file_with_attachment_id: 'logo-id',
+          },
+          {
+            resource_name: 'jump.aac',
+            replace_file_with_attachment_id: 'logo-id',
+          },
+        ],
+      });
+
+      const resourcesManager = project.getResourcesManager();
+      expect(resourcesManager.getResource('hero.png').getFile()).toBe(
+        'https://project-resources/hero.png'
+      );
+      expect(result.message).toContain(
+        'Replaced the file of the resource "hero.png" by the attached file "logo.png"'
+      );
+      // An image can't be the file of an audio resource.
+      expect(resourcesManager.getResource('jump.aac').getFile()).toBe(
+        'assets/jump.aac'
+      );
+      expect(result.message).toContain(
+        '"logo.png" cannot be the file of "jump.aac", which is a audio resource. Skipped.'
+      );
+    });
+
+    it('undoes the changes whose file could not be stored', async () => {
+      addProjectResources();
+
+      const result: EditorFunctionGenericOutput = await launchWithAttachments(
+        {
+          added_resources: [{ attachment_id: 'font-id' }],
+          changed_resources: [
+            {
+              resource_name: 'hero.png',
+              replace_file_with_attachment_id: 'logo-id',
+            },
+          ],
+        },
+        async () => 'stored'
+      );
+
+      expect(result.success).toBe(false);
+      const resourcesManager = project.getResourcesManager();
+      expect(resourcesManager.hasResource('title.ttf')).toBe(false);
+      expect(resourcesManager.getResource('hero.png').getFile()).toBe(
+        'assets/hero.png'
+      );
+      expect(result.message).toContain(
+        'The file for "hero.png" could not be stored in the project: nothing was changed.'
+      );
+    });
+
+    it('keeps the files in memory until a project not saved yet is saved', async () => {
+      const result: EditorFunctionGenericOutput = await launchWithAttachments(
+        { added_resources: [{ attachment_id: 'logo-id' }] },
+        async () => 'stored-when-project-is-saved'
+      );
+
+      expect(result.success).toBe(true);
+      expect(
+        project
+          .getResourcesManager()
+          .getResource('logo.png')
+          .getFile()
+      ).toMatch(/^blob:/);
+      expect(result.message).toContain(
+        'The project is not saved yet: the files will be stored in it when it is saved.'
+      );
+    });
+
+    it('undoes all the changes when the project was not saved to store the files', async () => {
+      addProjectResources();
+
+      const result: EditorFunctionGenericOutput = await launchWithAttachments(
+        {
+          added_resources: [{ attachment_id: 'font-id' }],
+          changed_resources: [
+            {
+              resource_name: 'hero.png',
+              replace_file_with_attachment_id: 'logo-id',
+            },
+          ],
+        },
+        async () => 'project-not-saved'
+      );
+
+      expect(result.success).toBe(false);
+      const resourcesManager = project.getResourcesManager();
+      expect(resourcesManager.hasResource('title.ttf')).toBe(false);
+      expect(resourcesManager.getResource('hero.png').getFile()).toBe(
+        'assets/hero.png'
+      );
+      expect(result.message).toContain(
+        'The attached files were not added: the project must be saved (in the cloud) to store them'
+      );
+      expect(result.message).toContain(
+        'Stop and ask the user to save their project, then try again.'
+      );
+    });
+
+    it('asks to attach again a file that is not available anymore', async () => {
+      const result: EditorFunctionGenericOutput = await launchWithAttachments({
+        added_resources: [{ attachment_id: 'expired-id' }],
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain(
+        'The attached file "expired-id" is not available (attached files are kept 30 days): ask the user to attach it again.'
+      );
+    });
   });
 });

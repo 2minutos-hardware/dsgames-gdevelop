@@ -19,12 +19,11 @@ import {
   pasteObjectFolderOrObjectsAndNotify,
 } from './ObjectFolderOrObjectsClipboard';
 import { duplicateObjectFolderOrObjects } from './ObjectFolderOrObjectsDuplicate';
-import { renderQuickCustomizationMenuItems } from '../QuickCustomization/QuickCustomizationMenuItems';
 import { type MessageDescriptor } from '../Utils/i18n/MessageDescriptor.flow';
 import type { ObjectWithContext } from '../ObjectsList/EnumerateObjects';
 import { type HTMLDataset } from '../Utils/HTMLDataset';
 import { exceptionallyGuardAgainstDeadObject } from '../Utils/IsNullPtr';
-import { removeSubFolders } from '../Utils/Folders';
+import { removeFolderAndSubFolders } from '../Utils/Folders';
 
 const gd: libGDevelop = global.gd;
 
@@ -217,7 +216,6 @@ export class ObjectFolderTreeViewItemContent implements TreeViewItemContent {
       addFolder,
       onAddNewObject,
       onMovedObjectFolderOrObjectToAnotherFolderInSameContainer,
-      forceUpdate,
       isListLocked,
     } = this.props;
 
@@ -313,14 +311,6 @@ export class ObjectFolderTreeViewItemContent implements TreeViewItemContent {
               },
             ],
           },
-      ...renderQuickCustomizationMenuItems({
-        i18n,
-        visibility: this.objectFolder.getQuickCustomizationVisibility(),
-        onChangeVisibility: visibility => {
-          this.objectFolder.setQuickCustomizationVisibility(visibility);
-          forceUpdate();
-        },
-      }),
       { type: 'separator' },
       {
         label: i18n._(t`Add a new object`),
@@ -371,8 +361,7 @@ export class ObjectFolderTreeViewItemContent implements TreeViewItemContent {
     if (objectsToDelete.length === 0) {
       // Folder is empty or contains only empty folders.
       selectObjectFolderOrObjectWithContext(null);
-      removeSubFolders(this.objectFolder);
-      this.objectFolder.getParent().removeFolderChild(this.objectFolder);
+      removeFolderAndSubFolders(this.objectFolder);
       onObjectModified(true);
       return true;
     }
@@ -419,8 +408,7 @@ export class ObjectFolderTreeViewItemContent implements TreeViewItemContent {
         });
       }
 
-      removeSubFolders(folderToDelete);
-      folderToDelete.getParent().removeFolderChild(folderToDelete);
+      removeFolderAndSubFolders(folderToDelete);
       forceUpdateList();
 
       onObjectModified(false);

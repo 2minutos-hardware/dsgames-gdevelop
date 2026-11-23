@@ -200,6 +200,22 @@ bool ExporterHelper::ExportProjectForPixiPreview(
     for (const auto &includeFile : usedExtensionsResult.GetUsedIncludeFiles()) {
       InsertUnique(includesFiles, includeFile);
     }
+    // Gameplay tests can only be run when a debugger client is included
+    // (see `AddLibsInclude`): then, include the files adding helpers to the
+    // gameplay test harness, for the extensions used by the project.
+    if (!options.websocketDebuggerServerAddress.empty() ||
+        options.useWindowMessageDebuggerClient) {
+      const auto &platform = exportedProject.GetCurrentPlatform();
+      for (const auto &extensionName :
+           usedExtensionsResult.GetUsedExtensions()) {
+        if (!platform.IsExtensionLoaded(extensionName)) continue;
+        for (const auto &includeFile :
+             platform.GetExtension(extensionName)
+                 ->GetGameplayTestIncludeFiles()) {
+          InsertUnique(includesFiles, includeFile);
+        }
+      }
+    }
     for (const auto &requiredFile : usedExtensionsResult.GetUsedRequiredFiles()) {
       InsertUnique(resourcesFiles, requiredFile);
     }
@@ -474,10 +490,6 @@ void ExporterHelper::SerializeRuntimeGameOptions(
   if (!options.projectTemplateSlug.empty()) {
     runtimeGameOptions.AddChild("projectTemplateSlug")
         .SetStringValue(options.projectTemplateSlug);
-  }
-  if (!options.sourceGameId.empty()) {
-    runtimeGameOptions.AddChild("sourceGameId")
-        .SetStringValue(options.sourceGameId);
   }
 
   if (!options.captureOptions.IsEmpty()) {
@@ -1206,6 +1218,7 @@ void ExporterHelper::AddLibsInclude(bool pixiRenderers,
   InsertUnique(includesFiles, "RuntimeCustomObjectLayer.js");
   InsertUnique(includesFiles, "timer.js");
   InsertUnique(includesFiles, "runtimewatermark.js");
+  InsertUnique(includesFiles, "named-easings-manager.js");
   InsertUnique(includesFiles, "runtimegame.js");
   InsertUnique(includesFiles, "variable.js");
   InsertUnique(includesFiles, "variablescontainer.js");

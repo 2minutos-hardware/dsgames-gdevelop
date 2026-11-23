@@ -23,6 +23,7 @@ import { type MenuItemTemplate } from '../UI/Menu/Menu.flow';
 import { type UnsavedChanges } from '../MainFrame/UnsavedChangesContext';
 import { type HotReloadPreviewButtonProps } from '../HotReload/HotReloadPreviewButton';
 import useForceUpdate from '../Utils/UseForceUpdate';
+import { useOnResource3DPreviewRendered } from '../ResourcesList/ResourcePreview/Resource3DPreviewContext';
 import { type ResourceManagementProps } from '../ResourcesList/ResourceSource';
 import { Column } from '../UI/Grid';
 import Add from '../UI/CustomSvgIcons/Add';
@@ -517,6 +518,9 @@ type Props = {|
     objects: Array<gdObject>,
     isTheFirstOfItsTypeInProject: boolean
   ) => void,
+  // An effect from the asset store was put on a layer: the game shown by the
+  // editor must reload it.
+  onEffectAdded: () => void,
   onObjectEdited: (
     objectWithContext: ObjectWithContext,
     hasResourceChanged: boolean
@@ -566,6 +570,7 @@ const ObjectsList = React.forwardRef<Props, ObjectsListInterface>(
       onExportAssets,
       onImportAssets,
       onObjectCreated,
+      onEffectAdded,
       onObjectEdited,
       onObjectFolderOrObjectsWithContextSelected,
       onObjectPasted,
@@ -597,6 +602,7 @@ const ObjectsList = React.forwardRef<Props, ObjectsListInterface>(
       },
       [forceUpdate]
     );
+    useOnResource3DPreviewRendered(forceUpdateList);
 
     const [newObjectDialogOpen, setNewObjectDialogOpen] = React.useState<{
       from: ObjectFolderOrObjectWithContext | null,
@@ -1073,6 +1079,7 @@ const ObjectsList = React.forwardRef<Props, ObjectsListInterface>(
       bulkCut,
       bulkPaste,
       bulkDuplicate,
+      bulkMoveToNewFolder,
       bulkSetAsGlobalObject,
       buildBulkMenuTemplate,
     } = useBulkObjectOperations({
@@ -1485,6 +1492,10 @@ const ObjectsList = React.forwardRef<Props, ObjectsListInterface>(
             }
           });
           keyboardShortcutsRef.current.setShortcutCallback(
+            'onGroupInFolder',
+            bulkMoveToNewFolder
+          );
+          keyboardShortcutsRef.current.setShortcutCallback(
             'onSelectAll',
             selectAllInSection
           );
@@ -1503,6 +1514,7 @@ const ObjectsList = React.forwardRef<Props, ObjectsListInterface>(
         bulkCut,
         bulkPaste,
         bulkDuplicate,
+        bulkMoveToNewFolder,
         pasteIntoFolder,
         globalObjectsRootFolder,
         objectsRootFolder,
@@ -2015,6 +2027,10 @@ const ObjectsList = React.forwardRef<Props, ObjectsListInterface>(
             onClose={() => setNewObjectDialogOpen(null)}
             onCreateNewObject={addObject}
             onObjectsAddedFromAssets={onObjectsAddedFromAssets}
+            onLayerEffectAddedFromAssets={() => {
+              if (unsavedChanges) unsavedChanges.triggerUnsavedChanges();
+              onEffectAdded();
+            }}
             project={project}
             layout={layout}
             eventsFunctionsExtension={eventsFunctionsExtension}

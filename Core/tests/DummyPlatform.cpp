@@ -489,6 +489,26 @@ void SetupProjectWithDummyPlatform(gd::Project& project,
           "GetVariableAsNumber", "Get me a variable value", "", "", "")
       .AddParameter("scenevar", "Scene variable")
       .SetFunctionName("returnVariable");
+  extension
+      ->AddExpression(
+          "GetGlobalVariableAsNumber", "Get me a variable value", "", "", "")
+      .AddParameter("globalvar", "Global variable")
+      .SetFunctionName("returnGlobalVariable");
+  extension
+      ->AddExpression(
+          "GetAnyVariableAsNumber", "Get me a variable value", "", "", "")
+      .AddParameter("variable", "Variable")
+      .SetFunctionName("getAnyVariableAsNumber");
+  extension
+      ->AddExpression(
+          "GetPrimitiveVariableAsNumber", "Get me a variable value", "", "", "")
+      .AddParameter("variable", "Variable", "primitive")
+      .SetFunctionName("getPrimitiveVariableAsNumber");
+  extension
+      ->AddExpression(
+          "GetCollectionVariableAsNumber", "Get me a variable value", "", "", "")
+      .AddParameter("variable", "Variable", "collection")
+      .SetFunctionName("getCollectionVariableAsNumber");
   extension->AddStrExpression("ToString", "ToString", "", "", "")
       .AddParameter("expression", "Number to convert to string")
       .SetFunctionName("toString");
@@ -573,6 +593,24 @@ void SetupProjectWithDummyPlatform(gd::Project& project,
       .AddParameter("object", _("Object"), "Sprite")
       .AddParameter("objectvar", _("Variable"))
       .SetFunctionName("returnVariable");
+  object
+      .AddExpression("GetPrimitiveObjectVariableAsNumber",
+                     "Get an object variable value",
+                     "",
+                     "",
+                     "")
+      .AddParameter("object", _("Object"), "Sprite")
+      .AddParameter("objectvar", _("Variable"), "primitive")
+      .SetFunctionName("getPrimitiveObjectVariableAsNumber");
+  object
+      .AddExpression("GetCollectionObjectVariableAsNumber",
+                     "Get an object variable value",
+                     "",
+                     "",
+                     "")
+      .AddParameter("object", _("Object"), "Sprite")
+      .AddParameter("objectvar", _("Variable"), "collection")
+      .SetFunctionName("getCollectionObjectVariableAsNumber");
   object.AddExpression("GetObjectNumber", "Get number from object", "", "", "")
       .AddParameter("object", _("Object"), "Sprite")
       .SetFunctionName("getObjectNumber");
@@ -679,6 +717,21 @@ void SetupProjectWithDummyPlatform(gd::Project& project,
                                gd::make_unique<gd::Behavior>(
                                   "Behavior", "MyExtension::MyOtherBehavior"),
                                gd::make_unique<gd::BehaviorsSharedData>());
+  }
+
+  {
+    extension
+        ->AddBehavior("MyInputMapperBehavior",
+                      "Dummy input mapper behavior",
+                      "MyInputMapperBehavior",
+                      "A dummy behavior not synchronized by default",
+                      "Group",
+                      "Icon.png",
+                      "MyInputMapperBehavior",
+                      gd::make_unique<gd::Behavior>(
+                          "Behavior", "MyExtension::MyInputMapperBehavior"),
+                      gd::make_unique<gd::BehaviorsSharedData>())
+        .SetNotSynchronizedByDefault();
   }
 
   {

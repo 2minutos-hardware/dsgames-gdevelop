@@ -169,9 +169,19 @@ export const AssetStoreStateProvider = ({
   const [assetShortHeadersById, setAssetShortHeadersById] = React.useState<?{
     [string]: AssetShortHeader,
   }>(null);
+  // The id can be shortened to its first characters (the AI is given 10 of
+  // them): it must then be the start of exactly one id.
   const getAssetShortHeaderFromId = React.useCallback(
-    (id: string): AssetShortHeader | null =>
-      (assetShortHeadersById && assetShortHeadersById[id]) || null,
+    (id: string): AssetShortHeader | null => {
+      if (!assetShortHeadersById) return null;
+      if (assetShortHeadersById[id]) return assetShortHeadersById[id];
+      const matchingIds = Object.keys(assetShortHeadersById).filter(fullId =>
+        fullId.startsWith(id)
+      );
+      return matchingIds.length === 1
+        ? assetShortHeadersById[matchingIds[0]]
+        : null;
+    },
     [assetShortHeadersById]
   );
   const [
@@ -284,9 +294,14 @@ export const AssetStoreStateProvider = ({
     !!limits.capabilities.classrooms &&
     limits.capabilities.classrooms.hidePremiumProducts;
 
+  // Only the last fetch is applied: switching the environment while a fetch is
+  // running must not let the previous environment's assets come last.
+  const lastFetchIndex = React.useRef<number>(0);
   const fetchAssetsAndFilters = React.useCallback(
     () => {
       (async () => {
+        lastFetchIndex.current++;
+        const fetchIndex = lastFetchIndex.current;
         setError(null);
 
         try {
@@ -298,6 +313,7 @@ export const AssetStoreStateProvider = ({
           const fetchedAuthors = await listAllAuthors({ environment });
           const fetchedLicenses = await listAllLicenses({ environment });
           const fetchedPrivateAssetPackListingDatas = await listListedPrivateAssetPacks();
+          if (fetchIndex !== lastFetchIndex.current) return;
 
           console.info(
             `Loaded ${
@@ -313,6 +329,7 @@ export const AssetStoreStateProvider = ({
           setLicenses(fetchedLicenses);
           setPrivateAssetPackListingDatas(fetchedPrivateAssetPackListingDatas);
         } catch (error) {
+          if (fetchIndex !== lastFetchIndex.current) return;
           console.error(
             `Unable to load the assets from the asset store:`,
             error

@@ -13,17 +13,9 @@ import {
 } from '../../../Utils/Analytics/EventSender';
 import Window from '../../../Utils/Window';
 import useAlertDialog from '../../../UI/Alert/useAlertDialog';
+import PreferencesContext from '../../../MainFrame/Preferences/PreferencesContext';
+import PasswordPromptDialog from '../../../AssetStore/PasswordPromptDialog';
 
-const cancelConfirmationTexts = {
-  level: 'normal',
-  dialogTexts: {
-    title: t`Cancel your subscription?`,
-    message: t`By canceling your subscription, you will lose all your premium features at the end of the period you already paid for. Continue?`,
-    confirmButtonLabel: t`Continue`,
-    dismissButtonLabel: t`Keep subscription`,
-    maxWidth: 'sm',
-  },
-};
 // When changing subscription, the existing one is kept until the payment for the
 // new one is completed: it's then replaced by the new one (and cancelled at the payment
 // provider by the backend). Nothing is cancelled if the user does not complete the payment.
@@ -58,13 +50,21 @@ type Props = {|
   dialogVariant?: string,
 |};
 
+type CheckoutOptions = {|
+  pricingSystemId: string,
+  quantity?: number,
+|};
+
 type BuyUpdateOrCancelPlanState = {|
   buyUpdateOrCancelPlan: (
     i18n: I18nType,
     subscriptionPlanPricingSystem: SubscriptionPlanPricingSystem | null
   ) => Promise<void>,
+  cancelConfirmationDialogOpen: boolean,
+  setCancelConfirmationDialogOpen: (open: boolean) => void,
   cancelReasonDialogOpen: boolean,
   setCancelReasonDialogOpen: (open: boolean) => void,
+  passwordPromptDialog: React.Node,
 |};
 
 /**
@@ -80,10 +80,47 @@ export const useBuyUpdateOrCancelPlan = ({
 }: Props): BuyUpdateOrCancelPlanState => {
   const authenticatedUser = React.useContext(AuthenticatedUserContext);
   const { subscription, profile } = authenticatedUser;
+  const preferences = React.useContext(PreferencesContext);
   const { showConfirmation, showDeleteConfirmation } = useAlertDialog();
+  const [
+    cancelConfirmationDialogOpen,
+    setCancelConfirmationDialogOpen,
+  ] = React.useState(false);
   const [cancelReasonDialogOpen, setCancelReasonDialogOpen] = React.useState(
     false
   );
+  const [
+    checkoutOptionsWaitingForPassword,
+    setCheckoutOptionsWaitingForPassword,
+  ] = React.useState<?CheckoutOptions>(null);
+  const [password, setPassword] = React.useState<string>('');
+
+  const openCheckout = (
+    { pricingSystemId, quantity }: CheckoutOptions,
+    checkoutPassword?: string
+  ) => {
+    if (!profile) return;
+    onOpenPendingDialog(true);
+    Window.openExternalURL(
+      getRedirectToCheckoutUrl({
+        pricingSystemId,
+        userId: profile.id,
+        userEmail: profile.email,
+        quantity,
+        couponCode: couponCode || undefined,
+        language: preferences.values.language,
+        password: checkoutPassword,
+      })
+    );
+  };
+
+  const startCheckout = (checkoutOptions: CheckoutOptions) => {
+    if (Window.isDev()) {
+      setCheckoutOptionsWaitingForPassword(checkoutOptions);
+      return;
+    }
+    openCheckout(checkoutOptions);
+  };
 
   const buyUpdateOrCancelPlan = async (
     i18n: I18nType,
@@ -102,7 +139,6 @@ export const useBuyUpdateOrCancelPlan = ({
 
     // Subscribing from an account without a subscription
     if (!subscription.planId && subscriptionPlanPricingSystem) {
-      onOpenPendingDialog(true);
       const isEducationPlan =
         subscriptionPlanPricingSystem &&
         subscriptionPlanPricingSystem.planId === 'gdevelop_education';
@@ -110,27 +146,16 @@ export const useBuyUpdateOrCancelPlan = ({
         isEducationPlan && getEducationPlanSeatsCount
           ? getEducationPlanSeatsCount()
           : undefined;
-      Window.openExternalURL(
-        getRedirectToCheckoutUrl({
-          pricingSystemId: subscriptionPlanPricingSystem.id,
-          userId: profile.id,
-          userEmail: profile.email,
-          quantity,
-          couponCode: couponCode || undefined,
-        })
-      );
+      startCheckout({
+        pricingSystemId: subscriptionPlanPricingSystem.id,
+        quantity,
+      });
       return;
     }
 
     if (!subscriptionPlanPricingSystem) {
       // Cancelling the existing subscription.
-      const answer = await showConfirmation(
-        // $FlowFixMe[incompatible-type]
-        cancelConfirmationTexts.dialogTexts
-      );
-      if (!answer) return;
-
-      setCancelReasonDialogOpen(true);
+      setCancelConfirmationDialogOpen(true);
       return;
     }
 
@@ -174,20 +199,25 @@ export const useBuyUpdateOrCancelPlan = ({
     });
 
     // Redirect as if a new subscription is being chosen.
-    onOpenPendingDialog(true);
-    Window.openExternalURL(
-      getRedirectToCheckoutUrl({
-        pricingSystemId: subscriptionPlanPricingSystem.id,
-        userId: profile.id,
-        userEmail: profile.email,
-        couponCode: couponCode || undefined,
-      })
-    );
+    startCheckout({ pricingSystemId: subscriptionPlanPricingSystem.id });
   };
 
   return {
     buyUpdateOrCancelPlan,
+    cancelConfirmationDialogOpen,
+    setCancelConfirmationDialogOpen,
     cancelReasonDialogOpen,
     setCancelReasonDialogOpen,
+    passwordPromptDialog: checkoutOptionsWaitingForPassword ? (
+      <PasswordPromptDialog
+        passwordValue={password}
+        setPasswordValue={setPassword}
+        onClose={() => setCheckoutOptionsWaitingForPassword(null)}
+        onApply={() => {
+          setCheckoutOptionsWaitingForPassword(null);
+          openCheckout(checkoutOptionsWaitingForPassword, password);
+        }}
+      />
+    ) : null,
   };
 };

@@ -1,6 +1,7 @@
 // @flow
 import {
   addAssetToProject,
+  installEffectAsset,
   getRequiredExtensionsFromAsset,
   installPublicAsset,
   checkRequiredExtensionsUpdateForAssets,
@@ -21,6 +22,7 @@ import {
   incompatibleFlashExtensionShortHeader,
   fireBulletExtensionShortHeader,
   fakeAssetWithCustomObject,
+  fakeSkyboxAsset,
   buttonV1ExtensionShortHeader,
   buttonV2ExtensionShortHeader,
   breakingButtonV3ExtensionShortHeader,
@@ -46,6 +48,122 @@ Asset.getPublicAsset = jest.fn();
 const mockFn = (fn: Function): JestMockFn<any, any> => fn;
 
 describe('InstallAsset', () => {
+  describe('installEffectAsset', () => {
+    it('marks a skybox without a top as legacy and keeps the top of the others', () => {
+      const { project } = makeTestProject(gd);
+      const effectsContainer = project
+        .insertNewLayout('MyTestLayout', 0)
+        .getLayers()
+        .getLayer('')
+        .getEffects();
+      const effectAsset = (fakeSkyboxAsset.effectAssets || [])[0];
+
+      const legacyEffect = installEffectAsset({
+        project,
+        effectsContainer,
+        asset: fakeSkyboxAsset,
+        effectName: 'LegacySky',
+      });
+      const standardEffect = installEffectAsset({
+        project,
+        effectsContainer,
+        asset: {
+          ...fakeSkyboxAsset,
+          effectAssets: [
+            {
+              ...effectAsset,
+              effect: {
+                ...effectAsset.effect,
+                stringParameters: {
+                  ...effectAsset.effect.stringParameters,
+                  top: 'Z+',
+                },
+              },
+            },
+          ],
+        },
+        effectName: 'StandardSky',
+      });
+
+      expect(legacyEffect.getStringParameter('top')).toBe('Legacy');
+      expect(standardEffect.getStringParameter('top')).toBe('Z+');
+    });
+
+    it('installs a skybox as an effect showing its images', () => {
+      const { project } = makeTestProject(gd);
+      const layout = project.insertNewLayout('MyTestLayout', 0);
+      const effectsContainer = layout
+        .getLayers()
+        .getLayer('')
+        .getEffects();
+
+      const effect = installEffectAsset({
+        project,
+        effectsContainer,
+        asset: fakeSkyboxAsset,
+        effectName: 'Sky',
+      });
+
+      expect(effect.getName()).toBe('Sky');
+      expect(effect.getEffectType()).toBe('Scene3D::Skybox');
+      expect(effectsContainer.getEffectsCount()).toBe(1);
+      expect(effect.getStringParameter('topFaceResourceName')).toBe(
+        'Sunny Day_Top.png'
+      );
+      const resourcesManager = project.getResourcesManager();
+      expect(resourcesManager.hasResource('Sunny Day_Top.png')).toBe(true);
+      expect(resourcesManager.getResource('Sunny Day_Top.png').getFile()).toBe(
+        fakeSkyboxAsset.effectAssets
+          ? fakeSkyboxAsset.effectAssets[0].resources[4].file
+          : ''
+      );
+    });
+
+    it('replaces the images of an existing effect instead of adding one', () => {
+      const { project } = makeTestProject(gd);
+      const layout = project.insertNewLayout('MyTestLayout', 0);
+      const effectsContainer = layout
+        .getLayers()
+        .getLayer('')
+        .getEffects();
+      effectsContainer
+        .insertNewEffect('Sky', 0)
+        .setEffectType('Scene3D::Skybox');
+      project.getResourcesManager().addResource(
+        (() => {
+          const resource = new gd.ImageResource();
+          resource.setName('Sunny Day_Top.png');
+          resource.setFile('somewhere/else.png');
+          return resource;
+        })()
+      );
+
+      const effect = installEffectAsset({
+        project,
+        effectsContainer,
+        asset: fakeSkyboxAsset,
+        effectName: 'Sky',
+      });
+
+      expect(effectsContainer.getEffectsCount()).toBe(1);
+      // The project already had a resource with that name: the installed one is renamed.
+      const topFaceResourceName = effect.getStringParameter(
+        'topFaceResourceName'
+      );
+      expect(topFaceResourceName).not.toBe('Sunny Day_Top.png');
+      expect(
+        project
+          .getResourcesManager()
+          .getResource(topFaceResourceName)
+          .getFile()
+      ).toBe(
+        fakeSkyboxAsset.effectAssets
+          ? fakeSkyboxAsset.effectAssets[0].resources[4].file
+          : ''
+      );
+    });
+  });
+
   describe('addAssetToProject', () => {
     it('installs an object asset in the project, without renaming it if not needed', async () => {
       const { project } = makeTestProject(gd);
