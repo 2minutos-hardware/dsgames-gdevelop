@@ -99,6 +99,12 @@ describe('DSGAMES fork', () => {
       ).toContain('Runtime/Extensions/DSGAMES/JsExtension.js');
     });
 
+    it('is tested with the game engine', () => {
+      expect(readRepositoryFile('.github/workflows/test-engine.yml')).toContain(
+        'karma start karma.dsgames.conf.js'
+      );
+    });
+
     it("replaces GDevelop's Multiplayer extension, which stays hidden", () => {
       const multiplayerModule = requireRepositoryFile(
         'Extensions/Multiplayer/JsExtension.js'
@@ -181,7 +187,6 @@ describe('DSGAMES fork', () => {
     // upstream's version back.
     it.each([
       'Extensions/Multiplayer/JsExtension.js',
-      'GDJS/tests/karma.conf.js',
       'newIDE/app/public/index.html',
       'newIDE/app/src/BrowserApp.js',
       'newIDE/app/src/ExportAndShare/BrowserExporters/BrowserFileSystem.js',

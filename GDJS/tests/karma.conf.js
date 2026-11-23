@@ -204,8 +204,6 @@ module.exports = function (config) {
       './newIDE/app/resources/GDJS/Runtime/Extensions/Spine/managers/*.js',
       './newIDE/app/resources/GDJS/Runtime/Extensions/SaveState/SaveStateTools.js',
       './newIDE/app/resources/GDJS/Runtime/Extensions/SaveState/SaveConfigurationRuntimeBehavior.js',
-      // DSGAMES fork: our extension, tested in Extensions/DSGAMES/tests.
-      './newIDE/app/resources/GDJS/Runtime/Extensions/DSGAMES/dsgamestools.js',
 
       // Test extensions:
       './GDJS/tests/tests/Extensions/**.js',

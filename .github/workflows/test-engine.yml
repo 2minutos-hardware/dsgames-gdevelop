@@ -62,9 +62,10 @@ jobs:
         working-directory: GDJS
         run: npm run build
 
+      # GDevelop's tests, plus ours (see karma.dsgames.conf.js).
       - name: Test
         working-directory: GDJS/tests
-        run: npm run test:chromeHeadlessNoSandbox
+        run: npx karma start karma.dsgames.conf.js --browsers ChromeHeadlessNoSandbox --single-run
 
   editor-checks:
     name: Editor types and tests
