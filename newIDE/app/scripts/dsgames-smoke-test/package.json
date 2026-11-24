@@ -1,0 +1,12 @@
+{
+  "name": "dsgames-smoke-test",
+  "private": true,
+  "description": "DSGAMES fork: smoke test of the built editor (see smoke-test.js).",
+  "scripts": {
+    "serve": "node serve.js ../../build 8769",
+    "test": "node smoke-test.js http://127.0.0.1:8769/editor/ smoke-test-report"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
+  }
+}
