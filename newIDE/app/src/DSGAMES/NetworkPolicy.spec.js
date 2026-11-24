@@ -21,7 +21,7 @@ describe('DSGAMES network policy', () => {
       );
     });
 
-    it('blocks trackers, the other requests to hidden features, and the upload of preview screenshots', () => {
+    it("blocks trackers and anything else asked to GDevelop's API, like its catalogs", () => {
       [
         ['GET', 'https://app.posthog.com/decide'],
         ['POST', 'https://eu.i.posthog.com/e/'],
@@ -37,16 +37,21 @@ describe('DSGAMES network policy', () => {
         ['GET', 'https://api.gdevelop.io/shop/course/some-course-id'],
         ['POST', 'https://api.gdevelop.io/shop/purchase'],
         ['POST', 'https://api.gdevelop.io/game/resource-signed-url'],
+        ['GET', 'https://api.gdevelop.io/asset/asset?environment=live'],
+        ['GET', 'https://api.gdevelop.io/asset/object'],
+        ['GET', 'https://api.gdevelop.io/asset/behavior'],
+        ['GET', 'https://api.gdevelop.io/asset/extension'],
+        ['GET', 'https://api.gdevelop.io/asset/example'],
+        ['GET', 'https://api.gdevelop.io/asset/in-app-tutorial-short-header'],
+        ['GET', 'https://api-dev.gdevelop.io/asset/asset'],
+        ['GET', 'https://api.gdevelop.io/user/user-profile'],
       ].forEach(([method, url]) =>
         expect(getNetworkDecision(method, url)).toBe('block')
       );
     });
 
-    it('lets the rest through, like the catalogs opened by the user', () => {
+    it('lets the rest through, like files that projects use from GDevelop', () => {
       [
-        'https://api.gdevelop.io/asset/asset?environment=live',
-        'https://api.gdevelop.io/asset/extension',
-        'https://api.gdevelop.io/asset/example',
         'https://resources.gdevelop-app.com/assets-database/assets/abc.json',
         'https://asset-resources.gdevelop.io/public-resources/image.png',
         'https://games.dosminutos.es/publish/',
@@ -93,7 +98,9 @@ describe('DSGAMES network policy', () => {
       const { target, fetch } = makeTarget();
 
       await expect(
-        target.fetch('https://api.gdevelop.io/asset/extension')
+        target.fetch(
+          'https://asset-resources.gdevelop.io/public-resources/image.png'
+        )
       ).resolves.toBe('network response');
       expect(fetch).toHaveBeenCalledTimes(1);
 
@@ -115,11 +122,14 @@ describe('DSGAMES network policy', () => {
       const { target } = makeTarget();
 
       const allowed = new target.XMLHttpRequest();
-      allowed.open('GET', 'https://api.gdevelop.io/asset/object');
+      allowed.open(
+        'GET',
+        'https://resources.gdevelop-app.com/assets/sprite.png'
+      );
       allowed.send();
       expect(allowed.openedWith).toEqual({
         method: 'GET',
-        url: 'https://api.gdevelop.io/asset/object',
+        url: 'https://resources.gdevelop-app.com/assets/sprite.png',
       });
       expect(allowed.sent).toBe(true);
 

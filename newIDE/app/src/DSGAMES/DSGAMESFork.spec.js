@@ -186,13 +186,6 @@ describe('DSGAMES fork', () => {
       );
     });
 
-    it("doesn't preload GDevelop's catalogs", () => {
-      expect(
-        requireRepositoryFile('newIDE/app/src/DSGAMES/GDevelopCatalogs.js')
-          .prefetchGDevelopCatalogs
-      ).toBe(false);
-    });
-
     it("serves Workbox itself, not from Google's CDN", () => {
       const template = readRepositoryFile(
         'newIDE/app/scripts/service-worker-template/service-worker-template.js'
@@ -218,15 +211,6 @@ describe('DSGAMES fork', () => {
       'newIDE/app/.gitignore',
       'newIDE/app/scripts/make-service-worker.js',
       'newIDE/app/scripts/service-worker-template/service-worker-template.js',
-      'newIDE/app/src/AssetStore/AssetStoreContext.js',
-      'newIDE/app/src/AssetStore/BehaviorStore/BehaviorStoreContext.js',
-      'newIDE/app/src/AssetStore/ExampleStore/ExampleStoreContext.js',
-      'newIDE/app/src/AssetStore/ExtensionStore/ExtensionStoreContext.js',
-      'newIDE/app/src/AssetStore/NewObjectDialog.js',
-      'newIDE/app/src/AssetStore/ObjectStoreContext.js',
-      'newIDE/app/src/AssetStore/index.js',
-      'newIDE/app/src/BehaviorsEditor/NewBehaviorDialog.js',
-      'newIDE/app/src/InAppTutorial/InAppTutorialProvider.js',
       'newIDE/app/src/index.js',
       'newIDE/app/public/index.html',
       'newIDE/app/src/BrowserApp.js',

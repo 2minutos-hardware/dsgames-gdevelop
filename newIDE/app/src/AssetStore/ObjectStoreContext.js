@@ -15,7 +15,6 @@ import {
 } from '../UI/Search/UseSearchStructuredItem';
 import PreferencesContext from '../MainFrame/Preferences/PreferencesContext';
 import { OBJECTS_FETCH_TIMEOUT } from '../Utils/GlobalFetchTimeouts';
-import { prefetchGDevelopCatalogs } from '../DSGAMES/GDevelopCatalogs';
 import { translateExtensionCategory } from '../Utils/Extension/ExtensionCategories';
 
 const gd: libGDevelop = global.gd;
@@ -307,10 +306,6 @@ export const ObjectStoreStateProvider = ({
         isLoading.current
       )
         return;
-
-      // DSGAMES: fetched when the user opens the store, see
-      // DSGAMES/GDevelopCatalogs.js.
-      if (!prefetchGDevelopCatalogs) return;
 
       const timeoutId = setTimeout(() => {
         console.info('Pre-fetching objects from extension store...');

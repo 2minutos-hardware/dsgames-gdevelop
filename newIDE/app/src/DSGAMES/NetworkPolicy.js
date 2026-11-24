@@ -10,11 +10,16 @@
  * - listings of hidden features get an empty list, without any request (an
  *   error would show up in the asset store, which also lists bundles and
  *   game templates);
- * - trackers, the upload of preview screenshots and the Ask AI settings fail
- *   right away, like a network error, without any request.
- * Anything else goes through, like GDevelop's catalogs of assets, objects,
- * behaviors, extensions and examples: they are only fetched when the user
- * opens one of these stores (see GDevelopCatalogs.js).
+ * - anything else asked to GDevelop's API (its catalogs of assets, objects,
+ *   behaviors, extensions, examples and tutorials, accounts...) and to
+ *   trackers fails right away, like a network error, without any request.
+ *   GDevelop's API only answers to its own website (CORS), so none of it
+ *   ever worked from DSGAMES: the editor behaves as before, but nobody's IP
+ *   reaches GDevelop. Assets are imported or drawn in Piskel instead.
+ * Files that projects use from GDevelop's resource servers
+ * (resources.gdevelop-app.com, asset-resources.gdevelop.io) go through: they
+ * are only requested when a project uses them, and blocking them would break
+ * those projects.
  *
  * Not covered: service workers and web workers have their own `fetch`, and
  * scripts or images added to the page are loaded by the browser itself. The
@@ -43,23 +48,14 @@ const blockedHosts = [
 // GDevelop's remote scripts (analytics, ads on gd.games).
 const blockedUrls = [/^https:\/\/resources\.gdevelop\.io\/a\//];
 
-// Listings of features hidden in the DSGAMES editor, under api.gdevelop.io
-// (and its development twin): answered with an empty list.
+// GDevelop's API (and its development twin): every request is blocked,
+// except listings of features hidden in the DSGAMES editor, answered with an
+// empty list.
 const emptyListPaths = [
   /^\/shop\/[a-z-]+$/,
   /^\/release\/(announcement|promotion)$/,
   /^\/user\/(achievement|recommendation)$/,
   /^\/game\/marketing-plan$/,
-];
-
-// Other requests to hidden features of api.gdevelop.io: blocked.
-const blockedPaths = [
-  /^\/shop\//,
-  /^\/release\/(announcement|promotion)/,
-  /^\/user\/(achievement|recommendation)/,
-  /^\/game\/marketing-plan/,
-  // Upload of screenshots taken during previews, for gd.games.
-  /^\/game\/resource-signed-url/,
 ];
 
 const gdevelopApiHosts = ['api.gdevelop.io', 'api-dev.gdevelop.io'];
@@ -86,7 +82,7 @@ export const getNetworkDecision = (
       emptyListPaths.some(path => path.test(pathname))
     )
       return 'empty-list';
-    if (blockedPaths.some(path => path.test(pathname))) return 'block';
+    return 'block';
   }
   return 'allow';
 };

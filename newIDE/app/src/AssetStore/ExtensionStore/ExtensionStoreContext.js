@@ -14,7 +14,6 @@ import {
 } from '../../UI/Search/UseSearchStructuredItem';
 import PreferencesContext from '../../MainFrame/Preferences/PreferencesContext';
 import { EXTENSIONS_FETCH_TIMEOUT } from '../../Utils/GlobalFetchTimeouts';
-import { prefetchGDevelopCatalogs } from '../../DSGAMES/GDevelopCatalogs';
 
 const emptySearchText = '';
 
@@ -169,10 +168,6 @@ export const ExtensionStoreStateProvider = ({
         isLoading.current
       )
         return;
-
-      // DSGAMES: fetched when the user opens the store, see
-      // DSGAMES/GDevelopCatalogs.js.
-      if (!prefetchGDevelopCatalogs) return;
 
       const timeoutId = setTimeout(() => {
         console.info('Pre-fetching extensions from extension store...');

@@ -9,7 +9,6 @@ import {
   type InAppTutorial,
 } from '../Utils/GDevelopServices/InAppTutorial';
 import { IN_APP_TUTORIALS_FETCH_TIMEOUT } from '../Utils/GlobalFetchTimeouts';
-import { prefetchGDevelopCatalogs } from '../DSGAMES/GDevelopCatalogs';
 import optionalRequire from '../Utils/OptionalRequire';
 import Window from '../Utils/Window';
 import { openFilePicker, readJSONFile } from '../Utils/FileSystem';
@@ -143,10 +142,6 @@ const InAppTutorialProvider = (props: Props): React.Node => {
   // Preload the in-app tutorial short headers when the app loads.
   React.useEffect(
     () => {
-      // DSGAMES: fetched when the user opens the store, see
-      // DSGAMES/GDevelopCatalogs.js.
-      if (!prefetchGDevelopCatalogs) return;
-
       const timeoutId = setTimeout(() => {
         console.info('Pre-fetching in-app tutorials...');
         loadInAppTutorials();

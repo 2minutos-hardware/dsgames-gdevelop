@@ -67,18 +67,8 @@ export default function NewBehaviorDialog({
   const authenticatedUser = React.useContext(AuthenticatedUserContext);
   const {
     translatedExtensionShortHeadersByName: extensionShortHeadersByName,
-    fetchExtensionsAndFilters,
   } = React.useContext(ExtensionStoreContext);
   const installExtension = useInstallExtension();
-  // DSGAMES: installing from the store can need extensions of the extension
-  // store, which the editor doesn't fetch when it starts (see
-  // DSGAMES/GDevelopCatalogs.js).
-  React.useEffect(
-    () => {
-      fetchExtensionsAndFilters();
-    },
-    [fetchExtensionsAndFilters]
-  );
 
   const createBadgeFirstExtension = addCreateBadgePreHookIfNotClaimed(
     authenticatedUser,

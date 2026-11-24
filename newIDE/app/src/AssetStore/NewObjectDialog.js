@@ -516,18 +516,8 @@ function NewObjectDialog({
   const chooseEffectNameForEffectAsset = useChooseEffectNameForEffectAsset();
   const {
     translatedExtensionShortHeadersByName: extensionShortHeadersByName,
-    fetchExtensionsAndFilters,
   } = React.useContext(ExtensionStoreContext);
   const installExtension = useInstallExtension();
-  // DSGAMES: installing from the store can need extensions of the extension
-  // store, which the editor doesn't fetch when it starts (see
-  // DSGAMES/GDevelopCatalogs.js).
-  React.useEffect(
-    () => {
-      fetchExtensionsAndFilters();
-    },
-    [fetchExtensionsAndFilters]
-  );
 
   // An effect of the asset store is not an object: it goes on a layer.
   const layersContainer: gdLayersContainer | null = layout
