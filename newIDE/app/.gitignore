@@ -34,6 +34,8 @@ public/external/yarn/__MACOSX/
 public/external/zip.js/*
 public/external/zlib-asm/*
 public/external/__MACOSX/
+# DSGAMES: Workbox, copied by scripts/make-service-worker.js
+public/external/workbox-v*
 
 # Resources
 resources/GDJS

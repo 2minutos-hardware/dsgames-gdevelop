@@ -1,5 +1,8 @@
 // @flow
 
+// DSGAMES: first, so that nothing reaches GDevelop's servers or trackers
+// before it's installed (see DSGAMES/NetworkPolicy.js).
+import './DSGAMES/NetworkPolicy';
 import 'element-closest';
 // $FlowFixMe[missing-export]
 import React, { Component, type Element } from 'react';

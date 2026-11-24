@@ -153,6 +153,17 @@ export const AssetStore: React.ComponentType<{
       getAssetShortHeaderFromId,
     } = React.useContext(AssetStoreContext);
 
+    // DSGAMES: the editor doesn't fetch the assets when it starts (see
+    // DSGAMES/GDevelopCatalogs.js): fetch them when the asset store opens.
+    React.useEffect(
+      () => {
+        if (!publicAssetPacks && !assetStoreError) fetchAssetsAndFilters();
+      },
+      // Only when the asset store opens.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      []
+    );
+
     const shopNavigationState = React.useContext(AssetStoreNavigatorContext);
     const {
       searchText,

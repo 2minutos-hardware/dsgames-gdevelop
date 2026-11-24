@@ -40,6 +40,7 @@ import {
   getPrivateAssetPackListingDataFromUserFriendlySlug,
 } from './AssetStoreUtils';
 import useAlertDialog from '../UI/Alert/useAlertDialog';
+import { prefetchGDevelopCatalogs } from '../DSGAMES/GDevelopCatalogs';
 
 export type AssetFiltersState = {|
   animatedFilter: AnimatedAssetStoreSearchFilter,
@@ -297,8 +298,11 @@ export const AssetStoreStateProvider = ({
   // Only the last fetch is applied: switching the environment while a fetch is
   // running must not let the previous environment's assets come last.
   const lastFetchIndex = React.useRef<number>(0);
+  // DSGAMES: whether the assets were requested once (see the effect below).
+  const wereAssetsRequested = React.useRef<boolean>(false);
   const fetchAssetsAndFilters = React.useCallback(
     () => {
+      wereAssetsRequested.current = true;
       (async () => {
         lastFetchIndex.current++;
         const fetchIndex = lastFetchIndex.current;
@@ -441,6 +445,9 @@ export const AssetStoreStateProvider = ({
     () => {
       // the callback fetchAssetsAndFilters depends on the environment,
       // so it will be called again if the environment changes.
+      // DSGAMES: the asset store fetches the assets when it opens (see
+      // DSGAMES/GDevelopCatalogs.js): only fetch them again here.
+      if (!prefetchGDevelopCatalogs && !wereAssetsRequested.current) return;
       fetchAssetsAndFilters();
     },
     [fetchAssetsAndFilters]

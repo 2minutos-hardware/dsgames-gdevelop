@@ -8,12 +8,15 @@
  *      button "Publish to DSGAMES" shows up);
  *   2. "Preview" opens the game (through the /browser_sw_preview/ service
  *      worker);
- *   3. the third party editors (Jfxr, Piskel, Yarn) load.
+ *   3. the third party editors (Jfxr, Piskel, Yarn) load;
+ *   4. "Add object" opens the asset store.
  *
  * Every request is recorded: pages, popups, workers and service workers.
  * The test fails if any of them goes to another host than the one serving
  * the editor: a tracker, or any call to GDevelop's servers, shows up here
  * whatever its name, unlike the text search of check-dsgames-privacy.js.
+ * The only exception: GDevelop's catalogs, in the steps where the user opens
+ * a store (see src/DSGAMES/GDevelopCatalogs.js).
  *
  * Serve the build with serve.js first. Usage:
  *   node smoke-test.js [editor URL] [report folder]
@@ -39,6 +42,15 @@ const thirdPartyEditors = [
   ['Piskel', 'external/piskel/piskel-editor/index.html'],
   ['Yarn', 'external/yarn/yarn-editor/index.html'],
 ];
+// External requests allowed in a step, because the user opened a store.
+const gdevelopCatalogs = [
+  /^https:\/\/api\.gdevelop\.io\/asset\//,
+  /^https:\/\/resources\.gdevelop-app\.com\//,
+  /^https:\/\/asset-resources\.gdevelop\.io\//,
+];
+const ADD_OBJECT_STEP = '"Add object" opens the asset store';
+/** @type {{[step: string]: Array<RegExp>}} */
+const allowedExternalRequests = { [ADD_OBJECT_STEP]: gdevelopCatalogs };
 const STARTUP_TIMEOUT_MS = 180 * 1000;
 const PREVIEW_TIMEOUT_MS = 120 * 1000;
 // Analytics are often sent a few seconds after a page loads.
@@ -59,6 +71,10 @@ const isExternal = url => {
   if (!/^(https?|wss?):/.test(url)) return false; // data:, blob:...
   return !allowedHosts.has(new URL(url).hostname);
 };
+
+/** @param {{step: string, url: string}} request */
+const isAllowedInItsStep = ({ step, url }) =>
+  (allowedExternalRequests[step] || []).some(pattern => pattern.test(url));
 
 /**
  * @param {import('playwright').Page} page
@@ -182,11 +198,33 @@ const screenshot = (page, name) =>
     });
   }
 
+  // GDevelop's API only answers its own website (CORS), so the store can't
+  // show GDevelop's catalogs: only check that the dialog opens.
+  /** @type {string} */
+  let assetStoreState = 'not opened';
+  await step(ADD_OBJECT_STEP, async () => {
+    await editor
+      .getByText('Add object')
+      .first()
+      .click();
+    await editor.locator('#asset-store-tab').waitFor({ timeout: 30 * 1000 });
+    await wait(SETTLE_MS * 2);
+    assetStoreState = (await editor
+      .getByText('An error occurred when fetching the store content.')
+      .count())
+      ? "opened, without GDevelop's catalogs"
+      : 'opened';
+    await screenshot(editor, '4-add-object');
+    await editor.locator('#close-button').click();
+  });
+
   currentStep = 'end';
   await wait(SETTLE_MS);
   await browser.close();
 
-  const external = requests.filter(request => isExternal(request.url));
+  const allExternal = requests.filter(request => isExternal(request.url));
+  const allowedExternal = allExternal.filter(isAllowedInItsStep);
+  const external = allExternal.filter(request => !isAllowedInItsStep(request));
   fs.writeFileSync(
     path.join(reportPath, 'network.json'),
     JSON.stringify({ requests, pageErrors, failedSteps }, null, 2)
@@ -204,6 +242,12 @@ const screenshot = (page, name) =>
     `${requests.length} requests, ${external.length} to other hosts than ${[
       ...allowedHosts,
     ].join(', ')}.`,
+    ``,
+    `Asset store: ${assetStoreState}. GDevelop's catalogs, allowed in that step: ${
+      allowedExternal.length
+    } requests (${[
+      ...new Set(allowedExternal.map(request => new URL(request.url).hostname)),
+    ].join(', ') || 'none'}).`,
     ``,
     ...failedSteps.map(({ step, error }) => `- ❌ ${step}: ${error}`),
     ...[...externalHosts].map(

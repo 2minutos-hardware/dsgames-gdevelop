@@ -11,6 +11,7 @@ import {
   type SearchResult,
 } from '../../UI/Search/UseSearchStructuredItem';
 import { EXAMPLES_FETCH_TIMEOUT } from '../../Utils/GlobalFetchTimeouts';
+import { prefetchGDevelopCatalogs } from '../../DSGAMES/GDevelopCatalogs';
 
 const defaultSearchText = '';
 const excludedTiers = new Set<string>(); // No tiers for examples.
@@ -122,6 +123,10 @@ export const ExampleStoreStateProvider = ({
       // Don't attempt to load again examples and filters if they
       // were loaded already.
       if (exampleShortHeadersById || isLoading.current) return;
+
+      // DSGAMES: fetched when the user opens the store, see
+      // DSGAMES/GDevelopCatalogs.js.
+      if (!prefetchGDevelopCatalogs) return;
 
       const timeoutId = setTimeout(() => {
         console.info('Pre-fetching examples from the example store...');

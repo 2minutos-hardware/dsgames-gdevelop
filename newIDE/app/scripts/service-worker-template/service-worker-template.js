@@ -260,13 +260,14 @@ self.addEventListener('activate', event => {
 
 self.__WB_DISABLE_DEV_LOGS = true;
 
+// DSGAMES: Workbox is served with the editor instead of Google's CDN:
+// make-service-worker.js copies it and replaces WORKBOX_DIRECTORY.
 // eslint-disable-next-line no-undef
-importScripts(
-  'https://storage.googleapis.com/workbox-cdn/releases/3.5.0/workbox-sw.js'
-);
+importScripts('WORKBOX_DIRECTORY/workbox-sw.js');
 
 /* global workbox */
 if (workbox) {
+  workbox.setConfig({ modulePathPrefix: 'WORKBOX_DIRECTORY/' });
   console.log('[ServiceWorker] Workbox loaded successfully');
 
   // Will be replaced by make-service-worker.js to include the proper version.
