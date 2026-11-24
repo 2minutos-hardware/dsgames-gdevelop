@@ -133,7 +133,7 @@ describe('DSGAMES network policy', () => {
       expect(emptyList.sent).toBe(true);
 
       const blocked = new target.XMLHttpRequest();
-      const onError = jest.fn();
+      const onError = jest.fn<Array<any>, void>();
       blocked.addEventListener('error', onError);
       blocked.open('GET', 'https://www.google-analytics.com/collect');
       blocked.send();

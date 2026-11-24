@@ -94,6 +94,7 @@ export const getNetworkDecision = (
 const emptyListDataUrl = 'data:application/json,%5B%5D';
 
 const logDecision = (decision: NetworkDecision, url: string) => {
+  // $FlowFixMe[cannot-resolve-name]
   if (process.env.NODE_ENV === 'production') return;
   console.info(
     `[DSGAMES] ${
@@ -124,6 +125,7 @@ export const installNetworkPolicy = (target: any) => {
 
   if (typeof target.fetch === 'function') {
     const originalFetch = target.fetch;
+    // $FlowFixMe[missing-this-annot]
     target.fetch = function(input: any, init: any) {
       const self: any = this;
       const url = getRequestUrl(input);
@@ -152,6 +154,7 @@ export const installNetworkPolicy = (target: any) => {
     const prototype = target.XMLHttpRequest.prototype;
     const originalOpen = prototype.open;
     const originalSend = prototype.send;
+    // $FlowFixMe[missing-this-annot]
     prototype.open = function(method: string, url: any, ...rest: Array<any>) {
       const request: any = this;
       const requestUrl = getRequestUrl(url);
@@ -163,6 +166,7 @@ export const installNetworkPolicy = (target: any) => {
       }
       return originalOpen.call(request, method, url, ...rest);
     };
+    // $FlowFixMe[missing-this-annot]
     prototype.send = function(...args: Array<any>) {
       const request: any = this;
       if (!request.__dsgamesBlocked) return originalSend.apply(request, args);
