@@ -60,10 +60,19 @@ const resolve = (schema: any): any =>
   schema && schema.$namedType ? sharedTypes[schema.$namedType] : schema;
 
 // Validates a value against a (possibly $namedType) schema. `$rawType` fields
-// (e.g. `number | null`) are not strictly checked. Only declared fields are
-// checked; extra fields are allowed (all these types are open-ended).
+// (e.g. `number | null`) are not strictly checked, except an intersection with
+// a shared type (`SimplifiedInstance & {...}`), checked against that type.
+// Only declared fields are checked; extra fields are allowed (all these types
+// are open-ended).
 const validateValue = (value: any, schema: any, path: string): void => {
-  if (!schema || schema.$rawType) return;
+  if (!schema) return;
+  if (schema.$rawType) {
+    const sharedTypeName = schema.$rawType.split(' & ')[0];
+    if (sharedTypes[sharedTypeName]) {
+      validateValue(value, sharedTypes[sharedTypeName], path);
+    }
+    return;
+  }
   const resolved = resolve(schema);
   if (!resolved) throw new Error(`Unresolved schema at ${path}`);
 
@@ -236,6 +245,35 @@ describe('typed outputs conformance (script API declared reads)', () => {
     validateResultAgainstSchema(result, 'inspect_object_properties_effects');
   });
 
+  it('inspect_object_properties_effects output conforms for an object synchronized with other players', async () => {
+    const playerObject = testScene.getObjects().getObject('Player');
+    playerObject.addNewBehavior(
+      project,
+      'Multiplayer::MultiplayerObjectBehavior',
+      'MultiplayerObject'
+    );
+    playerObject
+      .addNewBehavior(
+        project,
+        'DestroyOutsideBehavior::DestroyOutside',
+        'DestroyOutside'
+      )
+      .setSynchronizedOverNetwork(false);
+    const result: EditorFunctionGenericOutput = await editorFunctions.inspect_object_properties_effects.launchFunction(
+      {
+        ...makeFakeLaunchFunctionOptionsWithProject(project),
+        args: { scene_name: 'TestScene', object_name: 'Player' },
+      }
+    );
+    expect(result.success).toBe(true);
+    validateResultAgainstSchema(result, 'inspect_object_properties_effects');
+    expect(result.behaviors).toContainEqual({
+      behaviorName: 'DestroyOutside',
+      behaviorType: 'DestroyOutsideBehavior::DestroyOutside',
+      isSynchronizedOverNetwork: false,
+    });
+  });
+
   it('inspect_scene_properties_layers_effects output conforms', async () => {
     const result: EditorFunctionGenericOutput = await editorFunctions.inspect_scene_properties_layers_effects.launchFunction(
       {
@@ -367,6 +405,33 @@ describe('typed outputs conformance (script API declared reads)', () => {
     );
     expect(result.success).toBe(true);
     validateResultAgainstSchema(result, 'inspect_behavior_properties');
+  });
+
+  it('inspect_behavior_properties output conforms for an object synchronized with other players', async () => {
+    const playerObject = testScene.getObjects().getObject('Player');
+    playerObject.addNewBehavior(
+      project,
+      'Multiplayer::MultiplayerObjectBehavior',
+      'MultiplayerObject'
+    );
+    playerObject.addNewBehavior(
+      project,
+      'DestroyOutsideBehavior::DestroyOutside',
+      'DestroyOutside'
+    );
+    const result: EditorFunctionGenericOutput = await editorFunctions.inspect_behavior_properties.launchFunction(
+      {
+        ...makeFakeLaunchFunctionOptionsWithProject(project),
+        args: {
+          scene_name: 'TestScene',
+          object_name: 'Player',
+          behavior_name: 'DestroyOutside',
+        },
+      }
+    );
+    expect(result.success).toBe(true);
+    validateResultAgainstSchema(result, 'inspect_behavior_properties');
+    expect(result.isSynchronizedOverNetwork).toBe(true);
   });
 
   // `inspect_extension` returns up to four levels in one output: exercise them

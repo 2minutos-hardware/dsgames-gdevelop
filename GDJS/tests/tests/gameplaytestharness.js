@@ -165,6 +165,73 @@ describe('gdjs.gameplayTests', () => {
     expect(result.gameTimeMs).to.be(Math.round((6 * 1000) / 60));
   });
 
+  it('summarizes the scene variables of the final state', async () => {
+    const runtimeGame = makeRuntimeGame();
+    const result = await runTestScript(
+      runtimeGame,
+      `
+      await harness.goToScene('Scene 1');
+      harness.setSceneVariable('Score', 42);
+      harness.setSceneVariable('Save', 'x'.repeat(10000));
+      const map = harness._getCurrentScene().getVariables().get('Map');
+      for (let i = 0; i < 1000; i++) map.getChild('cell' + i).setNumber(i);
+      `
+    );
+
+    expect(result.status).to.be('passed');
+    const summaries = result.finalState.sceneVariables;
+    expect(summaries.find((variable) => variable.name === 'Score')).to.eql({
+      name: 'Score',
+      type: 'number',
+      value: 42,
+    });
+    expect(summaries.find((variable) => variable.name === 'Save')).to.eql({
+      name: 'Save',
+      type: 'string',
+      value: 'x'.repeat(100) + '…',
+    });
+    expect(summaries.find((variable) => variable.name === 'Map')).to.eql({
+      name: 'Map',
+      type: 'structure',
+      childrenCount: 1000,
+    });
+    expect(result.finalState.sceneVariablesNote).to.contain(
+      'harness.getSceneVariable(name)'
+    );
+    expect(JSON.stringify(result.finalState).length).to.be.below(2000);
+  });
+
+  it('summarizes the watched objects of the final state', async () => {
+    const runtimeGame = makeRuntimeGame();
+    const result = await runTestScript(
+      runtimeGame,
+      `
+      await harness.goToScene('Scene 2');
+      for (let i = 0; i < 30; i++) harness.spawn('MyObject', i, 0);
+      const first = harness.getObjects('MyObject')[0];
+      const inventory = harness
+        .getRuntimeObject(first.id)
+        .getVariables()
+        .get('Inventory');
+      for (let i = 0; i < 1000; i++) inventory.getChild('item' + i).setNumber(i);
+      harness.watch('MyObject');
+      `
+    );
+
+    expect(result.status).to.be('passed');
+    const watched = result.finalState.watchedObjects['MyObject'];
+    expect(watched.length).to.be(20);
+    expect(
+      watched[0].variables.find((variable) => variable.name === 'Inventory')
+    ).to.eql({ name: 'Inventory', type: 'structure', childrenCount: 1000 });
+    expect(result.finalState.watchedObjectsNote).to.contain(
+      'harness.getObjects(name)'
+    );
+    expect(result.finalState.watchedObjectsNote).to.contain(
+      'harness.getObjectVariable(instanceId, variableName)'
+    );
+  });
+
   it('reports a failed assertion and stops the script immediately', async () => {
     const runtimeGame = makeRuntimeGame();
     const result = await runTestScript(
@@ -184,6 +251,150 @@ describe('gdjs.gameplayTests', () => {
         (log) => log.message.indexOf('never be logged') !== -1
       )
     ).to.be(false);
+  });
+
+  describe('screenshots', () => {
+    const makeRuntimeGameWithCanvas = () => {
+      const runtimeGame = makeRuntimeGame();
+      runtimeGame
+        .getRenderer()
+        .createStandardCanvas(document.createElement('div'));
+      return runtimeGame;
+    };
+
+    it('keeps the first and the last 3 screenshots', async () => {
+      const result = await runTestScript(
+        makeRuntimeGameWithCanvas(),
+        `
+        await harness.goToScene('Scene 1');
+        for (let i = 1; i <= 6; i++) await harness.takeScreenshot('Shot ' + i);
+        `
+      );
+
+      expect(result.screenshots.map((screenshot) => screenshot.label)).to.eql([
+        'Shot 1',
+        'Shot 4',
+        'Shot 5',
+        'Shot 6',
+      ]);
+      expect(result.screenshotsTakenCount).to.be(6);
+      expect(result.screenshots[0].jpegBase64.length > 100).to.be(true);
+    });
+
+    it('takes a screenshot at the end when the script takes none, even on failure', async () => {
+      const result = await runTestScript(
+        makeRuntimeGameWithCanvas(),
+        `
+        await harness.goToScene('Scene 1');
+        harness.assert(false, 'This must fail');
+        `
+      );
+
+      expect(result.status).to.be('failed');
+      expect(result.screenshots.map((screenshot) => screenshot.label)).to.eql([
+        'End of the test',
+      ]);
+      expect(result.screenshotsTakenCount).to.be(1);
+    });
+
+    it('takes no screenshot when they are disabled', async () => {
+      const result = await runTestScript(
+        makeRuntimeGameWithCanvas(),
+        `
+        await harness.goToScene('Scene 1');
+        await harness.takeScreenshot('Ignored');
+        `,
+        { maxScreenshots: 0 }
+      );
+
+      expect(result.screenshots).to.eql([]);
+      expect(result.screenshotsTakenCount).to.be(0);
+    });
+
+    it('takes screenshots at the full resolution of the game when asked', async () => {
+      const result = await runTestScript(
+        makeRuntimeGameWithCanvas(),
+        `
+        await harness.goToScene('Scene 1');
+        harness.setGameResolutionSize(1600, 900);
+        await harness.takeScreenshot('Downscaled');
+        await harness.takeScreenshot('Full', { fullResolution: true });
+        `
+      );
+
+      /** @param {string} jpegBase64 */
+      const getImageSize = (jpegBase64) =>
+        new Promise((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => resolve([image.width, image.height]);
+          image.onerror = reject;
+          image.src = 'data:image/jpeg;base64,' + jpegBase64;
+        });
+      expect(result.status).to.be('passed');
+      expect(await getImageSize(result.screenshots[0].jpegBase64)).to.eql([
+        768, 432,
+      ]);
+      expect(await getImageSize(result.screenshots[1].jpegBase64)).to.eql([
+        1600, 900,
+      ]);
+    });
+
+    it('renders the game right before taking a screenshot', async () => {
+      const result = await runTestScript(
+        makeRuntimeGameWithCanvas(),
+        `
+        await harness.goToScene('Scene 1');
+        const scene = harness.getCurrentRuntimeScene();
+        const render = scene.render.bind(scene);
+        let renderCount = 0;
+        scene.render = () => {
+          renderCount++;
+          render();
+        };
+        await harness.takeScreenshot('Now');
+        harness.assert(renderCount === 1, 'Rendered ' + renderCount + ' times.');
+        `
+      );
+
+      expect(result.errors).to.eql([]);
+      expect(result.status).to.be('passed');
+    });
+  });
+
+  describe('harness extensions', () => {
+    /** @type {Array<string>} */
+    const testEndedCalls = [];
+    before(() => {
+      gdjs.gameplayTests.registerHarnessExtension('example', (harness) => ({
+        getSceneNameTwice: () => harness.getSceneName().repeat(2),
+        undoAtTheEnd: () =>
+          harness.onTestEnded(() => testEndedCalls.push('undone')),
+      }));
+    });
+
+    it('adds the helpers of an extension to the harness, and calls back at the end of the test', async () => {
+      const result = await runTestScript(
+        makeRuntimeGame(),
+        `
+        await harness.goToScene('Scene 1');
+        harness.example.undoAtTheEnd();
+        harness.assert(harness.example.getSceneNameTwice() === 'Scene 1Scene 1', 'The helpers can use the harness.');
+        harness.fail('Failing before the end');
+        `
+      );
+
+      expect(result.errors).to.eql(['Failing before the end']);
+      expect(testEndedCalls).to.eql(['undone']);
+    });
+
+    it('refuses an extension name that is already a member of the harness, or not in camelCase', () => {
+      expect(() =>
+        gdjs.gameplayTests.registerHarnessExtension('stepFrames', () => ({}))
+      ).to.throwException(/"stepFrames" is already a member of the harness/);
+      expect(() =>
+        gdjs.gameplayTests.registerHarnessExtension('My extension', () => ({}))
+      ).to.throwException(/Invalid harness extension name "My extension"/);
+    });
   });
 
   it('reports a script error', async () => {
@@ -460,6 +671,165 @@ describe('gdjs.gameplayTests', () => {
     expect(result.status).to.be('error');
     expect(result.errors[0]).to.contain('did not finish starting');
   }).timeout(10000);
+
+  it('excludes the creation of the scene and its first frame from the timeout budget', async () => {
+    const runtimeGame = makeRuntimeGame();
+    // A scene longer to create than the whole test budget (like a big 3D
+    // scene rendered in software).
+    const sceneStack = runtimeGame.getSceneStack();
+    const replace = sceneStack.replace.bind(sceneStack);
+    // @ts-ignore
+    sceneStack.replace = (options) => {
+      const endTimeMs = Date.now() + 300;
+      while (Date.now() < endTimeMs) {}
+      return replace(options);
+    };
+    const result = await runTestScript(
+      runtimeGame,
+      `
+      await harness.goToScene('Scene 1');
+      await harness.stepFrames(2);
+      harness.assert(harness.getSceneName() === 'Scene 1', 'Scene is running');
+      `,
+      { timeoutMs: 200 }
+    );
+
+    expect(result.status).to.be('passed');
+    expect(result.loadingMs >= 280).to.be(true);
+  }).timeout(10000);
+
+  it('tells the editor when it is loading, before creating the scene', async () => {
+    const runtimeGame = makeRuntimeGame();
+    /** @type {Array<{isLoading: boolean, isSceneCreated: boolean}>} */
+    const progresses = [];
+    const result = await gdjs.gameplayTests.runGameplayTest(
+      runtimeGame,
+      {
+        testName: 'Test',
+        source: `
+        await harness.goToScene('Scene 2');
+        await harness.stepFrames(1);
+        `,
+        timeoutMs: 5000,
+      },
+      (progress) => {
+        const currentScene = runtimeGame.getSceneStack().getCurrentScene();
+        progresses.push({
+          isLoading: progress.isLoading,
+          isSceneCreated:
+            !!currentScene && currentScene.getName() === 'Scene 2',
+        });
+      }
+    );
+
+    expect(result.status).to.be('passed');
+    const firstLoadingProgressIndex = progresses.findIndex(
+      (progress) => progress.isLoading
+    );
+    expect(firstLoadingProgressIndex).not.to.be(-1);
+    expect(progresses[firstLoadingProgressIndex].isSceneCreated).to.be(false);
+    expect(progresses[progresses.length - 1]).to.eql({
+      isLoading: false,
+      isSceneCreated: true,
+    });
+  });
+
+  it('runs a test once the stopped test it replaces has ended', async () => {
+    const runtimeGame = makeRuntimeGame();
+    const stoppedResultPromise = runTestScript(
+      runtimeGame,
+      `
+      await harness.goToScene('Scene 1');
+      await new Promise((resolve) => setTimeout(resolve, 60 * 1000));
+      `,
+      { timeoutMs: 120 * 1000 }
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    // The editor stops a test it gave up on, then runs the next one right
+    // away, while the stopped one is still ending.
+    gdjs.gameplayTests.stopCurrentGameplayTest();
+    const result = await runTestScript(
+      runtimeGame,
+      `
+      await harness.goToScene('Scene 1');
+      harness.assert(true, 'Ran');
+      `
+    );
+
+    expect((await stoppedResultPromise).status).to.be('stopped');
+    expect(result.errors).to.eql([]);
+    expect(result.status).to.be('passed');
+  });
+
+  it('waits between the creation of a scene and its first frame when asked', async () => {
+    const result = await runTestScript(
+      makeRuntimeGame(),
+      `
+      const events = [];
+      setTimeout(() => events.push('timer'), 100);
+      const scene = await (async () => {
+        await harness.goToScene('Scene 1', { delayBeforeFirstFrameMs: 300 });
+        return harness.getCurrentRuntimeScene();
+      })();
+      events.push('first frame stepped at ' + scene.getTimeManager().getTimeFromStart());
+      harness.assert(events[0] === 'timer', 'The timers fire before the first frame: ' + JSON.stringify(events));
+      `,
+      { timeoutMs: 200 }
+    );
+
+    expect(result.errors).to.eql([]);
+    expect(result.status).to.be('passed');
+    // Waited as loading, outside of the timeout budget.
+    expect(result.loadingMs >= 280).to.be(true);
+  });
+
+  it('refuses a negative delay before the first frame of a scene', async () => {
+    const result = await runTestScript(
+      makeRuntimeGame(),
+      `await harness.goToScene('Scene 1', { delayBeforeFirstFrameMs: -1 });`
+    );
+
+    expect(result.status).to.be('error');
+    expect(result.errors[0]).to.contain(
+      'delayBeforeFirstFrameMs expects a number of milliseconds between 0 and 60000.'
+    );
+  });
+
+  it('lets a test change its timeout budget', async () => {
+    const result = await runTestScript(
+      makeRuntimeGame(),
+      `
+      harness.setTimeoutMs(5000);
+      await harness.goToScene('Scene 1');
+      // Longer than the budget given by the payload.
+      await harness.stepFrames(1, {
+        onFrame: () => {
+          const endTimeMs = Date.now() + 300;
+          while (Date.now() < endTimeMs) {}
+        },
+      });
+      await harness.stepFrames(1);
+      harness.assert(true, 'Done');
+      `,
+      { timeoutMs: 200 }
+    );
+
+    expect(result.status).to.be('passed');
+    expect(result.timeoutMs).to.be(5000);
+  }).timeout(10000);
+
+  it('refuses a timeout budget that is not a positive number', async () => {
+    const result = await runTestScript(
+      makeRuntimeGame(),
+      `
+      harness.setTimeoutMs(-1);
+      await harness.goToScene('Scene 1');
+      `
+    );
+
+    expect(result.status).to.be('error');
+    expect(result.errors.join('\n')).to.contain('setTimeoutMs');
+  });
 
   it('excludes slow scene-asset loading from the timeout budget', async () => {
     const runtimeGame = makeRuntimeGame();
@@ -754,6 +1124,78 @@ describe('gdjs.gameplayTests', () => {
     ).to.be(true);
   });
 
+  it('reads and sets the children of variables with paths', async () => {
+    const sceneData = createSceneData('Scene 1');
+    sceneData.variables = [
+      {
+        name: 'Hit',
+        type: 'structure',
+        children: [{ name: 'Distance', type: 'number', value: 0 }],
+      },
+      {
+        name: 'Items',
+        type: 'array',
+        children: [
+          {
+            type: 'structure',
+            children: [{ name: 'Name', type: 'string', value: 'Sword' }],
+          },
+        ],
+      },
+      { name: 'Score', type: 'number', value: 3 },
+    ];
+    const runtimeGame = gdjs.getPixiRuntimeGame({ layouts: [sceneData] });
+    const result = await runTestScript(
+      runtimeGame,
+      `
+      await harness.goToScene('Scene 1');
+      harness.setSceneVariable('Hit.Distance', 12);
+      harness.setSceneVariable('Hit.Side', 'left');
+      harness.setSceneVariable('Items[0].Name', 'Shield');
+
+      harness.assert(
+        harness.getSceneVariable('Hit.Distance').value === 12,
+        'A declared child is set'
+      );
+      harness.assert(
+        harness.getSceneVariable('Hit.Side').value === 'left',
+        'A missing child of a structure is created'
+      );
+      harness.assert(
+        harness.getSceneVariable('Items[0].Name').value === 'Shield',
+        'A child of an item of an array is set'
+      );
+      harness.assert(
+        harness.getSceneVariable('Hit.Missing') === undefined,
+        'A missing child is undefined'
+      );
+
+      const errors = [];
+      for (const variablePath of [
+        'Missing.Child',
+        'Score.Child',
+        'Items[1]',
+        'Hit[0]',
+        'Hit..Distance',
+      ]) {
+        try {
+          harness.setSceneVariable(variablePath, 1);
+          errors.push(variablePath + ' was set');
+        } catch (error) {}
+      }
+      harness.assert(errors.length === 0, errors.join(', '));
+      `
+    );
+
+    expect(result.status).to.be('passed');
+    const currentScene = runtimeGame.getSceneStack().getCurrentScene();
+    if (!currentScene) throw new Error('No scene is running.');
+    const sceneVariables = currentScene.getVariables();
+    expect(sceneVariables.has('Hit.Distance')).to.be(false);
+    expect(sceneVariables.has('Missing')).to.be(false);
+    expect(sceneVariables.get('Score').getAsNumber()).to.be(3);
+  });
+
   it('records a sceneReset event when the same scene is restarted', async () => {
     const runtimeGame = makeRuntimeGame();
     const result = await runTestScript(
@@ -850,6 +1292,62 @@ describe('gdjs.gameplayTests', () => {
     );
 
     expect(result.status).to.be('passed');
+  });
+
+  it('benchmarks frames and reports the measures in the result', async () => {
+    const runtimeGame = makeRuntimeGame();
+    const result = await runTestScript(
+      runtimeGame,
+      `
+      await harness.goToScene('Scene 1');
+      harness.spawn('MyObject', 10, 20);
+      const benchmark = await harness.benchmark('Test benchmark', {
+        warmupFrames: 2,
+        frames: 5,
+      });
+      harness.assert(benchmark.frameTimesMs.length === 5, '5 frames are measured');
+      harness.assert(
+        benchmark.medianFrameTimeMs >= 0,
+        'The median frame time is returned'
+      );
+      harness.assert(benchmark.objectsCount === 1, 'The objects are counted');
+      harness.assert(
+        benchmark.drawCallsPerFrame === null,
+        'No draw calls are counted without renderer'
+      );
+      `
+    );
+
+    expect(result.status).to.be('passed');
+    expect(result.framesExecuted).to.be(1 + 2 + 5);
+    expect(result.benchmarks.length).to.be(1);
+    expect(result.benchmarks[0].name).to.be('Test benchmark');
+    expect(result.benchmarks[0].stateChecksum).to.be.a('string');
+  });
+
+  it('seeds Math.random until the end of the test', async () => {
+    const originalMathRandom = Math.random;
+    const runTestScriptPickingRandomNumbers = () =>
+      runTestScript(
+        makeRuntimeGame(),
+        `
+        harness.setRandomSeed(42);
+        await harness.goToScene('Scene 1');
+        console.log('Random numbers: ' + [Math.random(), Math.random()]);
+        `
+      );
+    /** @param {gdjs.gameplayTests.GameplayTestResult} result */
+    const getRandomNumbersLog = (result) =>
+      result.consoleLogs.find((log) =>
+        log.message.startsWith('Random numbers: ')
+      );
+    const result1 = await runTestScriptPickingRandomNumbers();
+    const result2 = await runTestScriptPickingRandomNumbers();
+
+    expect(result1.status).to.be('passed');
+    expect(getRandomNumbersLog(result1)).to.be.ok();
+    expect(getRandomNumbersLog(result1)).to.eql(getRandomNumbersLog(result2));
+    expect(Math.random).to.be(originalMathRandom);
   });
 
   it('reports an aim result object with the mouse responsiveness', async () => {
@@ -1212,6 +1710,38 @@ describe('gdjs.gameplayTests', () => {
       // so this maps back to game resolution coordinates).
       harness.setMousePosition(100, 50, '');
       expect(typeof inputManager.getMouseX()).to.be('number');
+    });
+
+    it('simulates the mouse position on a layer with a camera rotated in 3D', async () => {
+      const runtimeGame = makeRuntimeGame();
+      const harness = makeStartedHarness(runtimeGame);
+      await harness.goToScene('Scene 1');
+      const runtimeScene = harness.getCurrentRuntimeScene();
+      runtimeScene.addLayer({
+        name: '3D layer',
+        renderingType: '3d',
+        visibility: true,
+        cameras: [],
+        effects: [],
+        ambientLightColorR: 0,
+        ambientLightColorG: 0,
+        ambientLightColorB: 0,
+        isLightingLayer: false,
+        followBaseLayerCamera: false,
+      });
+      const layer = runtimeScene.getLayer('3D layer');
+      layer.setCameraX(100);
+      layer.setCameraY(200);
+      layer.setCameraRotationX(30);
+
+      harness.setMousePosition(150, 50, '3D layer');
+
+      expect(
+        gdjs.evtTools.input.getCursorX(runtimeScene, '3D layer', 0)
+      ).to.be.within(149.99, 150.01);
+      expect(
+        gdjs.evtTools.input.getCursorY(runtimeScene, '3D layer', 0)
+      ).to.be.within(49.99, 50.01);
     });
   });
 
@@ -1928,6 +2458,20 @@ describe('gdjs.gameplayTests', () => {
       expect(harness._runWarnings.length).to.be(0);
     });
 
+    it('warns that stepUntilObjectIsStable only waits for the first instance', async () => {
+      const harness = await makeHarnessWithSpawnedTank();
+      await harness.stepUntilObjectIsStable('CombinedTank', { maxFrames: 2 });
+      expect(harness._runWarnings.length).to.be(0);
+
+      harness.spawn('CombinedTank', 300, 200, undefined, 'UI');
+      await harness.stepUntilObjectIsStable('CombinedTank', { maxFrames: 2 });
+
+      expect(harness._runWarnings.length).to.be(1);
+      expect(harness._runWarnings[0]).to.contain(
+        'only waits for the first of the 2 instances of "CombinedTank"'
+      );
+    });
+
     it('moves a point with the Z and Z scale of a parent without a THREE object', () => {
       const harness = makeStartedHarness(makeRuntimeGame());
       // A 3D custom object places its children at
@@ -2540,7 +3084,7 @@ describe('gdjs.gameplayTests', () => {
 
         expect(getWarningsAbout(harness, 'EmptyShell').length).to.be(1);
         expect(getWarningsAbout(harness, 'EmptyShell')[0]).to.contain(
-          'renders nothing'
+          'has no child instances at the end of the test'
         );
         expect(getWarningsAbout(harness, 'EmptyShell3D').length).to.be(1);
         // A custom object with children is fine.
@@ -2565,6 +3109,50 @@ describe('gdjs.gameplayTests', () => {
 
         expect(getWarningsAbout(harness, 'EmptyShell3D').length).to.be(0);
       });
+
+      for (const is3D of [false, true]) {
+        it(`does not warn about a ${is3D ? '3D' : '2D'} renderer subclass drawing outside the custom object's children`, async () => {
+          const harness = makeStartedHarness(
+            makeRuntimeGameWithCustomObjects()
+          );
+          await harness.goToScene('Scene 1');
+          const objectName = is3D ? 'EmptyShell3D' : 'EmptyShell';
+          harness.spawn(objectName, 100, 200);
+          await harness.stepFrames(1);
+          const object = /** @type {any} */ (
+            harness.getRuntimeObject(objectName)
+          );
+          if (!object) throw new Error(`${objectName} was not spawned.`);
+
+          const BaseRenderer = is3D
+            ? gdjs.CustomRuntimeObject3DRenderer
+            : gdjs.CustomRuntimeObject2DRenderer;
+          class ExtensionRenderer extends BaseRenderer {}
+          object._renderer = new ExtensionRenderer(
+            object,
+            object.getChildrenContainer(),
+            object.getInstanceContainer()
+          );
+
+          // ParticleEmitter3D uses a subclass of the stock renderer, but
+          // its emitter is an empty Object3D: the meshes are drawn by a
+          // shared batch renderer on the layer, outside the emitter tree.
+          // The same arrangement is possible with a PixiJS renderer.
+          const layerRenderer = object
+            .getInstanceContainer()
+            .getLayer(object.getLayer())
+            .getRenderer();
+          if (is3D) {
+            object._renderer._threeGroup = new THREE.Object3D();
+            layerRenderer.add3DRendererObject(new THREE.Mesh());
+          } else {
+            layerRenderer.addRendererObject(new PIXI.Graphics(), 0);
+          }
+
+          expect(object._renderer instanceof BaseRenderer).to.be(true);
+          expect(getWarningsAbout(harness, objectName).length).to.be(0);
+        });
+      }
 
       it('does not warn about a custom object whose code draws in its renderer container', async () => {
         // The containers already hold the (empty) layers of the custom

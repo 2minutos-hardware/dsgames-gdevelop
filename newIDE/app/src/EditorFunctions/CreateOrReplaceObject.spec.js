@@ -48,7 +48,7 @@ describe('create_or_replace_object (additional cases)', () => {
 
     expect(result.success).toBe(false);
     expect(result.message).toBe(
-      'No asset found with id "non-existing-asset-id". Object not created.'
+      'No object found with id "non-existing-asset-id" (Object not found). Object not created.'
     );
     expect(testScene.getObjects().hasObjectNamed('MyAssetObject')).toBe(false);
   });
@@ -180,6 +180,25 @@ describe('create_or_replace_object (additional cases)', () => {
     expect(testSceneObjects.getObjectsCount()).toBe(2);
   });
 
+  it('fails when the object name is empty', async () => {
+    const result: EditorFunctionGenericOutput = await editorFunctions.create_or_replace_object.launchFunction(
+      {
+        ...makeFakeLaunchFunctionOptionsWithProject(project),
+        args: {
+          scene_name: 'TestScene',
+          object_type: 'TextObject::Text',
+          object_name: '',
+        },
+      }
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.message).toBe(
+      '`object_name` is empty: give the object a name. Nothing was created.'
+    );
+    expect(testScene.getObjects().getObjectsCount()).toBe(1);
+  });
+
   it('fails when creating from scratch with an invalid object type', async () => {
     const result: EditorFunctionGenericOutput = await editorFunctions.create_or_replace_object.launchFunction(
       {
@@ -221,7 +240,7 @@ describe('create_or_replace_object (additional cases)', () => {
     expect(searchAndInstallAsset).toHaveBeenCalledTimes(1);
     expect(searchAndInstallAsset).toHaveBeenCalledWith(
       expect.objectContaining({
-        searchTerms: 'button, default',
+        searchTerms: 'button, My Button, default',
         objectName: 'MyButton',
         objectType: 'Sprite',
       })

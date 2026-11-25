@@ -19,7 +19,13 @@ declare interface ProjectData {
   externalLayouts: ExternalLayoutData[];
   eventsFunctionsExtensions: EventsFunctionsExtensionData[];
   activatedByDefaultInEditorBehaviors?: Array<string>;
+  namedEasings?: NamedEasingData[];
 }
+
+declare type NamedEasingData = {
+  name: string;
+  cubicBezier: [number, number, number, number];
+};
 
 declare interface EventsFunctionsVariablesData {
   name: string;
@@ -162,7 +168,7 @@ declare type VariableData = Readonly<{
   /** The value of the variable. Leave blank for structures. */
   value?: string | float | boolean;
   /** The children of the structure. Leave blank if value is defined. */
-  children?: VariableData[];
+  children?: Array<VariableData | undefined>;
   /** The type of the variable. Defaults to number. */
   type?: VariableType;
   /**
@@ -178,7 +184,7 @@ declare type RootVariableData = Omit<VariableData, 'name'> & { name: string };
 
 declare type UnnamedVariableNetworkSyncData = {
   value: string | float | boolean;
-  children?: VariableNetworkSyncData[];
+  children?: Array<VariableNetworkSyncData | undefined>;
   type: VariableType;
   owner: number | null;
 };
@@ -208,6 +214,12 @@ declare type BehaviorData = {
   name: string;
   /** The behavior type. Used by GDJS to find the proper behavior to construct. */
   type: string;
+  /**
+   * False if the behavior state must not be synchronized with other players
+   * (for behaviors reacting to the inputs of the player owning the object).
+   * Synchronized if not specified.
+   */
+  isSynchronizedOverNetwork?: boolean;
 };
 
 declare type BehaviorNetworkSyncData = {
@@ -311,6 +323,7 @@ declare interface LayoutData extends InstanceContainerData {
   usedResources: ResourceReference[];
   resourcesPreloading?: 'at-startup' | 'never' | 'inherit';
   resourcesUnloading?: 'at-scene-exit' | 'never' | 'inherit';
+  renderer3DWorldScale: float;
   uiSettings: InstancesEditorSettings;
 }
 
@@ -383,6 +396,7 @@ declare interface EventsFunctionsExtensionData {
   eventsBasedObjects: EventsBasedObjectData[];
   globalVariables: RootVariableData[];
   sceneVariables: RootVariableData[];
+  namedEasings?: NamedEasingData[];
 }
 
 declare interface SceneAndExtensionsData {

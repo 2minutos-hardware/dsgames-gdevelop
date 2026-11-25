@@ -86,6 +86,52 @@ describe('libGD.js', function () {
       expect(project.hasLayoutNamed('Scene')).toBe(false);
     });
 
+    it('handles the layouts folder structure', function () {
+      const rootFolder = project.getLayoutsRootFolder();
+      expect(rootFolder.isFolder()).toBe(true);
+      expect(rootFolder.isRootFolder()).toBe(true);
+
+      // A new layout is added at the root of the folder structure.
+      project.insertNewLayout('Scene1', 0);
+      expect(rootFolder.getChildrenCount()).toBe(1);
+      expect(rootFolder.hasItemNamed('Scene1')).toBe(true);
+      expect(rootFolder.getChildAt(0).getItem().getName()).toBe('Scene1');
+
+      // A layout can be moved in a folder.
+      const folder = rootFolder.insertNewFolder('MyFolder', 0);
+      expect(folder.isFolder()).toBe(true);
+      expect(folder.getFolderName()).toBe('MyFolder');
+      project.insertNewLayout('Scene2', 1);
+      rootFolder.moveFolderOrItemToAnotherFolder(
+        rootFolder.getItemChild('Scene2'),
+        folder,
+        0
+      );
+      expect(folder.getChildrenCount()).toBe(1);
+      expect(folder.getChildAt(0).getItem().getName()).toBe('Scene2');
+      expect(folder.getChildAt(0).getParent()).toEqual(folder);
+
+      // A layout can be moved from a folder to another.
+      const scene1Node = rootFolder.getItemChild('Scene1');
+      rootFolder.moveFolderOrItemToAnotherFolder(scene1Node, folder, 0);
+      expect(folder.getChildrenCount()).toBe(2);
+      expect(folder.getChildAt(0).getItem().getName()).toBe('Scene1');
+      expect(rootFolder.hasItemNamed('Scene1')).toBe(true);
+      expect(rootFolder.getItemNamed('Scene1').getItem().getName()).toBe(
+        'Scene1'
+      );
+
+      // Removing a layout removes it from the folder structure.
+      project.removeLayout('Scene2');
+      expect(folder.getChildrenCount()).toBe(1);
+      expect(rootFolder.hasItemNamed('Scene2')).toBe(false);
+
+      project.removeLayout('Scene1');
+      expect(folder.getChildrenCount()).toBe(0);
+      rootFolder.removeFolderChild(folder);
+      expect(rootFolder.getChildrenCount()).toBe(0);
+    });
+
     it('handles external events', function () {
       expect(project.hasExternalEventsNamed('My events')).toBe(false);
 
@@ -127,6 +173,28 @@ describe('libGD.js', function () {
       tests.removeTest('My test');
       expect(tests.hasTestNamed('My test')).toBe(false);
       expect(tests.getTestsCount()).toBe(0);
+    });
+
+    it('handles named easings', function () {
+      const namedEasings = project.getNamedEasings();
+      expect(namedEasings.hasNamedEasingNamed('PopupOpen')).toBe(false);
+
+      const namedEasing = namedEasings.insertNewNamedEasing('PopupOpen', 0);
+      expect(namedEasings.hasNamedEasingNamed('PopupOpen')).toBe(true);
+      expect(namedEasings.getNamedEasingsCount()).toBe(1);
+      expect(namedEasing.getName()).toBe('PopupOpen');
+      namedEasing.setX1(0.34);
+      namedEasing.setY1(1.56);
+      namedEasing.setX2(0.64);
+      namedEasing.setY2(1);
+      expect(namedEasings.getNamedEasing('PopupOpen').getX1()).toBe(0.34);
+      expect(namedEasings.getNamedEasingAt(0).getY1()).toBe(1.56);
+      expect(namedEasings.getNamedEasing('PopupOpen').getX2()).toBe(0.64);
+      expect(namedEasings.getNamedEasingAt(0).getY2()).toBe(1);
+
+      namedEasings.removeNamedEasing('PopupOpen');
+      expect(namedEasings.hasNamedEasingNamed('PopupOpen')).toBe(false);
+      expect(namedEasings.getNamedEasingsCount()).toBe(0);
     });
 
     it('handles external layouts', function () {
@@ -1847,6 +1915,33 @@ describe('libGD.js', function () {
       behavior.delete();
       project.delete();
     });
+
+    it('can be set as not synchronized over the network', function () {
+      const project = gd.ProjectHelper.createNewGDJSProject();
+      const layout = project.insertNewLayout('Scene', 0);
+      const object = layout
+        .getObjects()
+        .insertNewObject(project, 'Sprite', 'MyObject', 0);
+      const behavior = object.addNewBehavior(
+        project,
+        'PlatformBehavior::PlatformerObjectBehavior',
+        'PlatformerObject'
+      );
+      expect(behavior.isSynchronizedOverNetwork()).toBe(true);
+      expect(behavior.isSynchronizedOverNetworkByDefault()).toBe(true);
+
+      behavior.setSynchronizedOverNetwork(false);
+      expect(behavior.isSynchronizedOverNetwork()).toBe(false);
+      const element = new gd.SerializerElement();
+      object.serializeTo(element);
+      const serializedObject = JSON.parse(gd.Serializer.toJSON(element));
+      element.delete();
+      expect(serializedObject.behaviors[0].isSynchronizedOverNetwork).toBe(
+        false
+      );
+
+      project.delete();
+    });
   });
 
   describe('gd.BehaviorsSharedData', function () {
@@ -2799,6 +2894,73 @@ describe('libGD.js', function () {
       expect(validateVolumeParameter('50')).toBe(true);
       expect(validateVolumeParameter('1 +')).toBe(false);
       expect(validateVolumeParameter('"Not a number"')).toBe(false);
+    });
+
+    it('checks that the object has the behavior of an untyped behavior parameter', function () {
+      // `ActivateBehavior` accepts any behavior: its "behavior" parameter has
+      // no behavior type, but the object must still have the behavior.
+      const objectWithBehavior = layout
+        .getObjects()
+        .insertNewObject(project, 'Sprite', 'ObjectWithBehavior', 0);
+      objectWithBehavior.addNewBehavior(
+        project,
+        'PlatformBehavior::PlatformerObjectBehavior',
+        'PlatformerObject'
+      );
+      layout
+        .getObjects()
+        .insertNewObject(project, 'Sprite', 'ObjectWithoutBehavior', 1);
+
+      const validateParameter = (objectName, behaviorName, parameterIndex) => {
+        const action = new gd.Instruction();
+        action.setType('ActivateBehavior');
+        action.setParametersCount(3);
+        action.setParameter(0, objectName);
+        action.setParameter(1, behaviorName);
+        action.setParameter(2, 'yes');
+        const result = gd.InstructionValidator.validateParameter(
+          gd.JsPlatform.get(),
+          projectScopedContainers,
+          action,
+          gd.MetadataProvider.getActionMetadata(
+            gd.JsPlatform.get(),
+            'ActivateBehavior'
+          ),
+          parameterIndex
+        );
+        const isValid = result.isValid();
+        action.delete();
+        return isValid;
+      };
+      const behaviorParameterIndex = 1;
+      const objectParameterIndex = 0;
+
+      expect(
+        validateParameter(
+          'ObjectWithBehavior',
+          'PlatformerObject',
+          behaviorParameterIndex
+        )
+      ).toBe(true);
+      expect(
+        validateParameter(
+          'ObjectWithoutBehavior',
+          'PlatformerObject',
+          behaviorParameterIndex
+        )
+      ).toBe(false);
+      expect(
+        validateParameter('ObjectWithBehavior', '', behaviorParameterIndex)
+      ).toBe(false);
+
+      // The error is on the behavior parameter: the object stays valid.
+      expect(
+        validateParameter(
+          'ObjectWithoutBehavior',
+          'PlatformerObject',
+          objectParameterIndex
+        )
+      ).toBe(true);
     });
   });
 
@@ -4982,6 +5144,30 @@ describe('libGD.js', function () {
 
       project.delete();
     });
+    it('handles named easings', function () {
+      const eventsFunctionsExtension = new gd.EventsFunctionsExtension();
+      const namedEasings = eventsFunctionsExtension.getNamedEasings();
+      expect(namedEasings.hasNamedEasingNamed('PopupOpen')).toBe(false);
+
+      const namedEasing = namedEasings.insertNewNamedEasing('PopupOpen', 0);
+      expect(namedEasings.hasNamedEasingNamed('PopupOpen')).toBe(true);
+      expect(namedEasings.getNamedEasingsCount()).toBe(1);
+      expect(namedEasing.getName()).toBe('PopupOpen');
+      namedEasing.setX1(0.34);
+      namedEasing.setY1(1.56);
+      namedEasing.setX2(0.64);
+      namedEasing.setY2(1);
+      expect(namedEasings.getNamedEasing('PopupOpen').getX1()).toBe(0.34);
+      expect(namedEasings.getNamedEasingAt(0).getY1()).toBe(1.56);
+      expect(namedEasings.getNamedEasing('PopupOpen').getX2()).toBe(0.64);
+      expect(namedEasings.getNamedEasingAt(0).getY2()).toBe(1);
+
+      namedEasings.removeNamedEasing('PopupOpen');
+      expect(namedEasings.hasNamedEasingNamed('PopupOpen')).toBe(false);
+      expect(namedEasings.getNamedEasingsCount()).toBe(0);
+
+      eventsFunctionsExtension.delete();
+    });
   });
   describe('gd.EventsBasedBehavior', () => {
     it('can have a name, fullname, description', function () {
@@ -4992,6 +5178,18 @@ describe('libGD.js', function () {
       expect(eventsBasedBehavior.getName()).toBe('My name');
       expect(eventsBasedBehavior.getFullName()).toBe('My descriptive name');
       expect(eventsBasedBehavior.getDescription()).toBe('My description');
+    });
+
+    it('can be set as not synchronized over the network by default', function () {
+      const eventsBasedBehavior = new gd.EventsBasedBehavior();
+      expect(eventsBasedBehavior.isSynchronizedOverNetworkByDefault()).toBe(
+        true
+      );
+      eventsBasedBehavior.setSynchronizedOverNetworkByDefault(false);
+      expect(eventsBasedBehavior.isSynchronizedOverNetworkByDefault()).toBe(
+        false
+      );
+      eventsBasedBehavior.delete();
     });
   });
 

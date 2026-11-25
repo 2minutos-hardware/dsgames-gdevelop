@@ -40,12 +40,33 @@ export type GameplayTestAssertion = {|
   passed: boolean,
 |};
 
+export type GameplayTestScreenshot = {
+  label: string,
+  frame: number,
+  // Missing in the results of older versions of the game engine.
+  width?: number,
+  height?: number,
+  // For a PNG screenshot, the same image flattened on a gray background.
+  jpegBase64: string,
+  // Only for a PNG screenshot (with a transparent background, notably).
+  pngBase64?: string,
+};
+
 export type GameplayTestResult = {
   testName: string,
   // 'paused': the run was interrupted because the editor stayed in the
   // background, where the browser stops running the game. Not a failure of
   // the test: it must simply be run again.
-  status: 'passed' | 'failed' | 'error' | 'stopped' | 'timeout' | 'paused',
+  // 'unavailable': the game preview could not be started (the browser
+  // storage is full...): the test did not run, says nothing about it.
+  status:
+    | 'passed'
+    | 'failed'
+    | 'error'
+    | 'stopped'
+    | 'timeout'
+    | 'paused'
+    | 'unavailable',
   framesExecuted: number,
   durationMs: number,
   // Time spent waiting for the game to boot and for scene assets to load,
@@ -68,7 +89,11 @@ export type GameplayTestResult = {
   consoleLogs: Array<{ level: 'log' | 'warn' | 'error', message: string }>,
   eventLog: Array<Object>,
   finalState: Object | null,
-  screenshots: Array<{ label: string, frame: number, jpegBase64: string }>,
+  screenshots: Array<GameplayTestScreenshot>,
+  // Screenshots taken, including the ones not kept in `screenshots`.
+  screenshotsTakenCount?: number,
+  // The screenshots taken but not kept (only the first and the last ones are).
+  droppedScreenshots?: Array<{ label: string, frame: number }>,
   // The `stopProfiling()` summaries captured during the run.
   profiles: Array<Object>,
   performance: Object | null,
@@ -84,7 +109,13 @@ export type GameplayTestToRun = {|
 
 export type GameplayTestRunOptions = {|
   timeoutMs?: number,
-  screenshots?: 'off' | 'on-failure',
+  // The longest the game can stay busy loading (booting, loading the assets
+  // of a scene, creating a scene, drawing its first frames) without
+  // reporting any progress. Default: 5 minutes.
+  loadingTimeoutMs?: number,
+  // 'on': the first and last screenshots taken by the test, or one taken
+  // when it ends if it took none.
+  screenshots?: 'off' | 'on',
   // Pace the run for a human watching it: game seconds simulated per real
   // second (1 = normal speed, 4 = 4x...). Omitted: run as fast as possible.
   speedFactor?: number,
@@ -119,6 +150,12 @@ const GAMEPLAY_TEST_FRAME_DEBUGGER_ID = 'gameplay-test-frame';
 const GAME_READY_TIMEOUT_MS = 60 * 1000;
 const GAME_READY_POLL_INTERVAL_MS = 300;
 const RESULT_EXTRA_TIMEOUT_MS = 10 * 1000;
+const DEFAULT_LOADING_TIMEOUT_MS = 5 * 60 * 1000;
+// The game runs in an iframe of the editor, in the same thread: while it is
+// busy (compiling the shaders of a big 3D scene...), the timers of the editor
+// can't run either. A watchdog firing this late means the game was busy, not
+// that it crashed.
+const WATCHDOG_LATENESS_TOLERANCE_MS = 2000;
 // A silence shorter than this while the editor is in the background is not
 // considered a stall: the game sends progress every 500ms, so a quick tab
 // switch can pass unnoticed by the game.
@@ -179,7 +216,7 @@ export const useIsGameplayTestRunInProgress = (): boolean => {
 
 const makeResultWithoutRun = (
   testName: string,
-  status: 'error' | 'stopped' | 'paused',
+  status: 'error' | 'stopped' | 'paused' | 'unavailable',
   errorMessage: string
 ): GameplayTestResult => ({
   testName,
@@ -227,7 +264,13 @@ export const makeGameplayTestResultReadableOutput = (
   consoleLogs: result.consoleLogs.map(log => `[${log.level}] ${log.message}`),
   eventLog: result.eventLog,
   finalState: result.finalState,
-  screenshots: result.screenshots,
+  // The PNG version of a screenshot is only for files (see the CLI): the
+  // JPEG version is the one read.
+  screenshots: result.screenshots.map(({ pngBase64, ...screenshot }) =>
+    pngBase64 ? { ...screenshot, format: 'png' } : screenshot
+  ),
+  screenshotsTakenCount: result.screenshotsTakenCount,
+  droppedScreenshots: result.droppedScreenshots,
   profiles: result.profiles,
   performance: result.performance,
 });
@@ -259,6 +302,16 @@ const makePausedResult = (
   ),
   hiddenStallMs,
 });
+
+/**
+ * Why the game preview could not be started, in words telling the AI that the
+ * test and the game are not in question.
+ */
+const getPreviewLaunchFailureMessage = (error: any): string =>
+  error && error.name === 'QuotaExceededError'
+    ? 'The game preview could not be started: the browser storage used by GDevelop is full, so the files of the game could not be stored. No preview nor gameplay test can run until the user frees this storage (in the site settings of the browser) and reloads GDevelop.'
+    : `The game preview could not be started: ${(error && error.message) ||
+        String(error)}`;
 
 /**
  * Get the tests container for a scope ('project' or an extension name),
@@ -431,6 +484,7 @@ const runSingleTest = async ({
   test,
   source,
   timeoutMs,
+  loadingTimeoutMs,
   screenshots,
   speedFactor,
   stateInspectors,
@@ -440,7 +494,8 @@ const runSingleTest = async ({
   test: GameplayTestToRun,
   source: string,
   timeoutMs: number,
-  screenshots: 'off' | 'on-failure',
+  loadingTimeoutMs: number,
+  screenshots: 'off' | 'on',
   speedFactor: number | null,
   stateInspectors: GameplayTestStateInspectors,
   onProgress: ?(test: GameplayTestToRun, frame: number) => void,
@@ -449,6 +504,8 @@ const runSingleTest = async ({
 
   return new Promise(resolve => {
     let watchdogTimeoutId: ?TimeoutID = null;
+    // Until the game tells otherwise, it can be busy booting or loading.
+    let isGameLoading = true;
     const hiddenStallTracker = createHiddenStallTracker({
       isHiddenAtStart: getIsPageHidden(),
     });
@@ -476,6 +533,9 @@ const runSingleTest = async ({
             // loads assets - loading is not counted against the test
             // timeout): give it a full budget again.
             hiddenStallTracker.reportProgress();
+            isGameLoading = !!(
+              parsedMessage.payload && parsedMessage.payload.isLoading
+            );
             armWatchdog();
             if (onProgress && parsedMessage.payload) {
               onProgress(test, parsedMessage.payload.frame || 0);
@@ -511,7 +571,10 @@ const runSingleTest = async ({
     // result. Re-armed by every progress message: a game legitimately
     // spends long over its own timeout while loading assets (loading is
     // excluded from the test budget), but it heartbeats while doing so - a
-    // full silence is what means it crashed.
+    // full silence is what means it crashed. While the game says it is
+    // loading, a single step of it (creating a big scene, compiling the
+    // shaders of its first draw) can keep it silent for long: it is then
+    // given the loading budget.
     //
     // Unless the editor is in the background: browsers then stop animation
     // frames, so the game stops stepping and goes silent for a reason that
@@ -520,8 +583,24 @@ const runSingleTest = async ({
     const armWatchdog = () => {
       if (watchdogTimeoutId !== null) clearTimeout(watchdogTimeoutId);
       const wasHidden = getIsPageHidden();
+      const wasGameLoading = isGameLoading;
+      const budgetMs =
+        (wasGameLoading ? loadingTimeoutMs : timeoutMs) +
+        RESULT_EXTRA_TIMEOUT_MS;
+      const expectedFireTimeMs =
+        Date.now() + (wasHidden ? MAX_HIDDEN_STALL_MS : budgetMs);
       watchdogTimeoutId = setTimeout(
         () => {
+          if (
+            Date.now() - expectedFireTimeMs >
+            WATCHDOG_LATENESS_TOLERANCE_MS
+          ) {
+            // The editor was frozen with the game (see
+            // WATCHDOG_LATENESS_TOLERANCE_MS): the game was busy, and its
+            // progress messages are about to be received.
+            armWatchdog();
+            return;
+          }
           // Visibility changed while waiting (the timer itself is throttled
           // in a hidden page, so it can fire long after it was armed): the
           // budget that just elapsed was not the right one.
@@ -535,19 +614,31 @@ const runSingleTest = async ({
               pausedMs: totalHiddenStallMs,
               isRunInterrupted: true,
             });
-            finish(makePausedResult(test.testName, totalHiddenStallMs));
+            giveUp(makePausedResult(test.testName, totalHiddenStallMs));
             return;
           }
-          finish(
+          giveUp(
             makeErrorResult(
               test.testName,
-              `No result nor progress received from the game after ${timeoutMs +
-                RESULT_EXTRA_TIMEOUT_MS}ms - the game may have crashed or been closed.`
+              `No result nor progress received from the game after ${budgetMs}ms${
+                wasGameLoading
+                  ? ' while it was loading (booting, loading the assets of a scene, creating a scene or drawing its first frames)'
+                  : ''
+              } - the game may have crashed or been closed.`
             )
           );
         },
-        wasHidden ? MAX_HIDDEN_STALL_MS : timeoutMs + RESULT_EXTRA_TIMEOUT_MS
+        wasHidden ? MAX_HIDDEN_STALL_MS : budgetMs
       );
+    };
+
+    // The game may still be running the test (busy in a long step): stop
+    // it, so that it does not keep running it and the next test can run.
+    const giveUp = (result: GameplayTestResult) => {
+      previewDebuggerServer.sendMessage(GAMEPLAY_TEST_FRAME_DEBUGGER_ID, {
+        command: 'gameplayTest.stop',
+      });
+      finish(result);
     };
 
     // Follow the editor being hidden and shown again, to tell a frozen run
@@ -576,6 +667,7 @@ const runSingleTest = async ({
       testName: test.testName,
       source,
       timeoutMs,
+      loadingTimeoutMs,
       // Readable state for object/behavior snapshots, derived from the
       // extensions metadata.
       stateInspectors,
@@ -687,39 +779,48 @@ export const runGameplayTests = async ({
 
       try {
         // Export and launch a fresh preview into the gameplay test frame.
-        await previewLauncher.launchPreview(
-          // $FlowFixMe[prop-missing] - the launchers accept partial preview options for gameplay tests.
-          ({
-            project,
-            sceneName: project.getFirstLayout(),
-            externalLayoutName: null,
-            eventsBasedObjectType: null,
-            eventsBasedObjectVariantName: null,
-            networkPreview: false,
-            hotReload: false,
-            shouldReloadProjectData: true,
-            shouldReloadLibraries: true,
-            shouldGenerateScenesEventsCode: true,
-            shouldReloadResources: false,
-            shouldHardReload: false,
-            fullLoadingScreen: false,
-            fallbackAuthor: null,
-            authenticatedPlayer: null,
-            isForInGameEdition: false,
-            isForGameplayTest: true,
-            editorId: '',
-            getIsMenuBarHiddenInPreview: () => true,
-            getIsAlwaysOnTopInPreview: () => false,
-            captureOptions: null,
-            onCaptureFinished: async () => {},
-            inAppTutorialMessageInPreview: '',
-            inAppTutorialMessagePositionInPreview: '',
-            editorCameraState3D: null,
-            inGameEditorSettings: null,
-            numberOfWindows: 0,
-            previewWindows: null,
-          }: any)
-        );
+        try {
+          await previewLauncher.launchPreview(
+            // $FlowFixMe[prop-missing] - the launchers accept partial preview options for gameplay tests.
+            ({
+              project,
+              sceneName: project.getFirstLayout(),
+              externalLayoutName: null,
+              eventsBasedObjectType: null,
+              eventsBasedObjectVariantName: null,
+              networkPreview: false,
+              hotReload: false,
+              shouldReloadProjectData: true,
+              shouldReloadLibraries: true,
+              shouldGenerateScenesEventsCode: true,
+              shouldReloadResources: false,
+              shouldHardReload: false,
+              fullLoadingScreen: false,
+              fallbackAuthor: null,
+              authenticatedPlayer: null,
+              isForInGameEdition: false,
+              isForGameplayTest: true,
+              editorId: '',
+              getIsMenuBarHiddenInPreview: () => true,
+              getIsAlwaysOnTopInPreview: () => false,
+              captureOptions: null,
+              onCaptureFinished: async () => {},
+              inAppTutorialMessageInPreview: '',
+              inAppTutorialMessagePositionInPreview: '',
+              editorCameraState3D: null,
+              inGameEditorSettings: null,
+              numberOfWindows: 0,
+              previewWindows: null,
+            }: any)
+          );
+        } catch (launchError) {
+          // Nothing will boot: say why now, instead of waiting for the boot
+          // timeout.
+          const error = new Error(getPreviewLaunchFailureMessage(launchError));
+          // $FlowFixMe[prop-missing] - tag the error so the runner reports the tests as not run, not as failed.
+          error.isPreviewUnavailable = true;
+          throw error;
+        }
 
         await waitForGameToBeReady(previewDebuggerServer, stopController);
 
@@ -758,6 +859,8 @@ export const runGameplayTests = async ({
             test,
             source,
             timeoutMs,
+            loadingTimeoutMs:
+              options.loadingTimeoutMs || DEFAULT_LOADING_TIMEOUT_MS,
             screenshots: options.screenshots || 'off',
             speedFactor: options.speedFactor || null,
             stateInspectors,
@@ -799,6 +902,13 @@ export const runGameplayTests = async ({
           // booting: mark the tests that could not be run as stopped.
           for (const { test } of testsWithSources.slice(results.length)) {
             results.push(makeStoppedResult(test.testName));
+          }
+        } else if (error.isPreviewUnavailable) {
+          console.error('[GameplayTestRunner] ' + error.message);
+          for (const { test } of testsWithSources.slice(results.length)) {
+            results.push(
+              makeResultWithoutRun(test.testName, 'unavailable', error.message)
+            );
           }
         } else {
           const errorMessage =

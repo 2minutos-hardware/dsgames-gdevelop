@@ -21,13 +21,14 @@ import PlaceholderLoader from '../../../UI/PlaceholderLoader';
 import { Column, Line, Spacer } from '../../../UI/Grid';
 import { SubscriptionContext } from '../SubscriptionContext';
 import SubscriptionOptions from './SubscriptionOptions';
-import SubscriptionPlan from './SubscriptionPlan';
+import SubscriptionPlan, { type CouponError } from './SubscriptionPlan';
 import AlertMessage from '../../../UI/AlertMessage';
 import Paper from '../../../UI/Paper';
 import { formatPriceWithCurrency, getPlanIcon } from '../PlanSmallCard';
 import { selectMessageByLocale } from '../../../Utils/i18n/MessageByLocale';
 import FlatButton from '../../../UI/FlatButton';
 import CancelReasonDialog from '../CancelReasonDialog';
+import CancelSubscriptionConfirmationDialog from '../CancelSubscriptionConfirmationDialog';
 import { useBuyUpdateOrCancelPlan } from './useBuyUpdateOrCancelPlan';
 import { uniq } from 'lodash';
 
@@ -67,6 +68,7 @@ type Props = {|
   recommendedPlanId: ?string,
   onOpenPendingDialog: (open: boolean) => void,
   couponCode?: ?string,
+  onOpenStore?: ?() => void,
 |};
 
 export default function SubscriptionDialog({
@@ -76,6 +78,7 @@ export default function SubscriptionDialog({
   recommendedPlanId,
   onOpenPendingDialog,
   couponCode,
+  onOpenStore,
 }: Props): React.Node {
   const [
     educationPlanSeatsCount,
@@ -98,23 +101,24 @@ export default function SubscriptionDialog({
     [pricingSystemId: string]: PricingSystemDiscount,
   }>({});
   const [isValidatingCoupon, setIsValidatingCoupon] = React.useState(false);
-  const [couponErrorMessage, setCouponErrorMessage] = React.useState<?string>(
-    null
-  );
+  const [couponError, setCouponError] = React.useState<?CouponError>(null);
 
   const onClearCoupon = React.useCallback(
     () => {
       clearCouponCode();
       setPricingSystemDiscounts({});
-      setCouponErrorMessage(null);
+      setCouponError(null);
     },
     [clearCouponCode]
   );
 
   const {
     buyUpdateOrCancelPlan,
+    cancelConfirmationDialogOpen,
+    setCancelConfirmationDialogOpen,
     cancelReasonDialogOpen,
     setCancelReasonDialogOpen,
+    passwordPromptDialog,
   } = useBuyUpdateOrCancelPlan({
     onOpenPendingDialog,
     couponCode,
@@ -207,14 +211,14 @@ export default function SubscriptionDialog({
       if (!couponCode) {
         // Clear local state when coupon is removed
         setPricingSystemDiscounts({});
-        setCouponErrorMessage(null);
+        setCouponError(null);
         setIsValidatingCoupon(false);
         return;
       }
 
       const validateCouponCode = async () => {
         setIsValidatingCoupon(true);
-        setCouponErrorMessage(null);
+        setCouponError(null);
 
         try {
           const result = await validateCoupon(couponCode);
@@ -229,12 +233,12 @@ export default function SubscriptionDialog({
             });
             setPricingSystemDiscounts(discountsMap);
           } else {
-            setCouponErrorMessage(result.errorMessage || null);
+            setCouponError(result.error || null);
             setPricingSystemDiscounts({});
           }
         } catch (error) {
           console.error('Error validating coupon:', error);
-          setCouponErrorMessage('Error validating coupon');
+          setCouponError({ code: 'validation-request-failed' });
           setPricingSystemDiscounts({});
         } finally {
           setIsValidatingCoupon(false);
@@ -410,7 +414,7 @@ export default function SubscriptionDialog({
                     setSeatsCount={setEducationPlanSeatsCount}
                     couponCode={couponCode}
                     pricingSystemDiscounts={pricingSystemDiscounts}
-                    couponErrorMessage={couponErrorMessage}
+                    couponError={couponError}
                     isValidatingCoupon={isValidatingCoupon}
                     onClearCoupon={onClearCoupon}
                   />
@@ -494,6 +498,32 @@ export default function SubscriptionDialog({
                 </Trans>
               </Text>
             </Dialog>
+          )}
+          {passwordPromptDialog}
+          {cancelConfirmationDialogOpen && (
+            <CancelSubscriptionConfirmationDialog
+              userSubscriptionPlanEvenIfLegacy={
+                userSubscriptionPlanEvenIfLegacy
+              }
+              freeSubscriptionPlan={
+                availableSubscriptionPlansWithPrices
+                  ? availableSubscriptionPlansWithPrices.find(
+                      subscriptionPlanWithPricingSystems =>
+                        subscriptionPlanWithPricingSystems.id === 'free'
+                    )
+                  : null
+              }
+              onConfirm={() => {
+                setCancelConfirmationDialogOpen(false);
+                setCancelReasonDialogOpen(true);
+              }}
+              onClose={() => setCancelConfirmationDialogOpen(false)}
+              onOpenStore={() => {
+                setCancelConfirmationDialogOpen(false);
+                onClose();
+                if (onOpenStore) onOpenStore();
+              }}
+            />
           )}
           {cancelReasonDialogOpen && (
             <CancelReasonDialog

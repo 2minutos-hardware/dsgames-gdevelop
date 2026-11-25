@@ -13,6 +13,8 @@ import {
   type EventsGenerationOptions,
   type AssetSearchAndInstallOptions,
   type AssetSearchAndInstallResult,
+  type EffectAssetSearchAndInstallOptions,
+  type EffectAssetSearchAndInstallResult,
   type RelatedAiRequestLastMessages,
   type ResourceSearchAndInstallOptions,
   type ResourceSearchAndInstallResult,
@@ -33,6 +35,7 @@ import {
 import PixiResourcesLoader from '../ObjectsRendering/PixiResourcesLoader';
 import { type EnsureExtensionInstalledOptions } from '../AiGeneration/UseEnsureExtensionInstalled';
 import { normalizeLegacyArguments } from './Scope';
+import { type AttachmentsForResources } from './AttachmentResources';
 
 type ProcessEditorFunctionCallsOptions = {|
   project: ?gdProject,
@@ -60,6 +63,7 @@ type ProcessEditorFunctionCallsOptions = {|
   onObjectsModifiedOutsideEditor: (
     changes: ObjectsOutsideEditorChanges
   ) => void,
+  onEffectsModifiedOutsideEditor: () => void,
   onObjectGroupsModifiedOutsideEditor: (
     changes: ObjectGroupsOutsideEditorChanges
   ) => void,
@@ -71,6 +75,7 @@ type ProcessEditorFunctionCallsOptions = {|
     changes: WillDeleteGameplayTestChanges
   ) => Promise<void>,
   onWillDeleteObject: (changes: WillDeleteObjectChanges) => void,
+  sendChangesToEditor: () => void,
   onExtensionsModifiedOutsideEditor: (
     changes: ExtensionsOutsideEditorChanges
   ) => void,
@@ -87,9 +92,13 @@ type ProcessEditorFunctionCallsOptions = {|
   searchAndInstallAsset: (
     options: AssetSearchAndInstallOptions
   ) => Promise<AssetSearchAndInstallResult>,
+  searchAndInstallEffectAsset: (
+    options: EffectAssetSearchAndInstallOptions
+  ) => Promise<EffectAssetSearchAndInstallResult>,
   searchAndInstallResources: (
     options: ResourceSearchAndInstallOptions
   ) => Promise<ResourceSearchAndInstallResult>,
+  attachmentsForResources: AttachmentsForResources,
   getAssetStoreTagForNewObject: (objectType: string) => string | null,
 |};
 
@@ -105,11 +114,13 @@ export const processEditorFunctionCalls = async ({
   onSceneEventsModifiedOutsideEditor,
   onInstancesModifiedOutsideEditor,
   onObjectsModifiedOutsideEditor,
+  onEffectsModifiedOutsideEditor,
   onObjectGroupsModifiedOutsideEditor,
   onProjectItemRenamedOutsideEditor,
   onWillDeleteScene,
   onWillDeleteGameplayTest,
   onWillDeleteObject,
+  sendChangesToEditor,
   onExtensionsModifiedOutsideEditor,
   ensureExtensionsUpToDate,
   reloadExtensionMetadata,
@@ -120,7 +131,9 @@ export const processEditorFunctionCalls = async ({
   onWillInstallExtension,
   onExtensionInstalled,
   searchAndInstallAsset,
+  searchAndInstallEffectAsset,
   searchAndInstallResources,
+  attachmentsForResources,
   getAssetStoreTagForNewObject,
 }: ProcessEditorFunctionCallsOptions): Promise<{|
   results: Array<EditorFunctionCallResult>,
@@ -238,11 +251,13 @@ export const processEditorFunctionCalls = async ({
         onSceneEventsModifiedOutsideEditor,
         onInstancesModifiedOutsideEditor,
         onObjectsModifiedOutsideEditor,
+        onEffectsModifiedOutsideEditor,
         onObjectGroupsModifiedOutsideEditor,
         onProjectItemRenamedOutsideEditor,
         onWillDeleteScene,
         onWillDeleteGameplayTest,
         onWillDeleteObject,
+        sendChangesToEditor,
         onExtensionsModifiedOutsideEditor,
         ensureExtensionsUpToDate,
         reloadExtensionMetadata,
@@ -251,7 +266,9 @@ export const processEditorFunctionCalls = async ({
         onWillInstallExtension,
         onExtensionInstalled,
         searchAndInstallAsset,
+        searchAndInstallEffectAsset,
         searchAndInstallResources,
+        attachmentsForResources,
         getAssetStoreTagForNewObject,
         PixiResourcesLoader,
       };

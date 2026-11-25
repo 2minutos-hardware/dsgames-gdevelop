@@ -1,5 +1,259 @@
 // @flow
-import { createHiddenStallTracker } from './GameplayTestRunner';
+import {
+  createHiddenStallTracker,
+  runGameplayTests,
+} from './GameplayTestRunner';
+
+const gd: libGDevelop = global.gd;
+
+const setSystemTimeMs = (timeMs: number) => {
+  // $FlowFixMe[prop-missing] - Missing in Flow types of Jest.
+  jest.setSystemTime(timeMs);
+};
+
+describe('runGameplayTests', () => {
+  let project: gdProject;
+
+  beforeEach(() => {
+    // $FlowFixMe[invalid-constructor]
+    project = new gd.ProjectHelper.createNewGDJSProject();
+  });
+
+  afterEach(() => {
+    project.delete();
+  });
+
+  // A launcher whose preview fails to start, like the browser one when its
+  // storage is full: no game will ever boot.
+  const runWithFailingPreviewLaunch = (launchError: Error) => {
+    const previewDebuggerServer: any = {
+      registerCallbacks: () => () => {},
+      sendMessage: () => {},
+    };
+    const previewLauncher: any = {
+      launchPreview: () => Promise.reject(launchError),
+      getPreviewDebuggerServer: () => previewDebuggerServer,
+    };
+    return runGameplayTests({
+      project,
+      tests: [
+        { scope: { type: 'project' }, testName: 'First', source: '' },
+        { scope: { type: 'project' }, testName: 'Second', source: '' },
+      ],
+      previewLauncher,
+      previewDebuggerServer,
+      options: {},
+    });
+  };
+
+  it('reports the tests as not run, without waiting for the game, when the browser storage is full', async () => {
+    const quotaError = new Error('Quota exceeded.');
+    quotaError.name = 'QuotaExceededError';
+
+    const results = await runWithFailingPreviewLaunch(quotaError);
+
+    expect(results.map(result => [result.testName, result.status])).toEqual([
+      ['First', 'unavailable'],
+      ['Second', 'unavailable'],
+    ]);
+    expect(results[0].errors).toEqual([
+      'The game preview could not be started: the browser storage used by GDevelop is full, so the files of the game could not be stored. No preview nor gameplay test can run until the user frees this storage (in the site settings of the browser) and reloads GDevelop.',
+    ]);
+  });
+
+  it('gives the cause of any other failure to start the preview', async () => {
+    const results = await runWithFailingPreviewLaunch(
+      new Error('Export failed.')
+    );
+
+    expect(results[0].status).toBe('unavailable');
+    expect(results[0].errors).toEqual([
+      'The game preview could not be started: Export failed.',
+    ]);
+  });
+});
+
+describe('runGameplayTests watchdog', () => {
+  let project: gdProject;
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    // $FlowFixMe[invalid-constructor]
+    project = new gd.ProjectHelper.createNewGDJSProject();
+  });
+
+  afterEach(() => {
+    project.delete();
+    jest.useRealTimers();
+  });
+
+  /**
+   * A game in the gameplay test frame, answering the debugger commands of
+   * the editor: `onRun` is called when a test is run, with a function
+   * sending a message of the game to the editor.
+   */
+  const makeFakeGame = (
+    onRun: (runMessage: Object, sendToEditor: (message: Object) => void) => void
+  ) => {
+    const sentMessages: Array<Object> = [];
+    let callbacksList: Array<Object> = [];
+    const sendToEditor = (parsedMessage: Object) => {
+      for (const callbacks of callbacksList.slice()) {
+        callbacks.onHandleParsedMessage({
+          id: 'gameplay-test-frame',
+          parsedMessage,
+        });
+      }
+    };
+    const previewDebuggerServer: any = {
+      registerCallbacks: callbacks => {
+        callbacksList.push(callbacks);
+        return () => {
+          callbacksList = callbacksList.filter(other => other !== callbacks);
+        };
+      },
+      sendMessage: (id, message) => {
+        sentMessages.push(message);
+        if (message.command === 'getStatus') {
+          sendToEditor({ command: 'status' });
+        } else if (message.command === 'gameplayTest.run') {
+          onRun(message, sendToEditor);
+        }
+      },
+    };
+    const previewLauncher: any = {
+      launchPreview: () => Promise.resolve(),
+      getPreviewDebuggerServer: () => previewDebuggerServer,
+    };
+    return { previewDebuggerServer, previewLauncher, sentMessages };
+  };
+
+  /** Let the time pass, giving a chance to the promises to settle. */
+  const letTimePass = async (durationMs: number) => {
+    for (let elapsedMs = 0; elapsedMs < durationMs; elapsedMs += 100) {
+      jest.advanceTimersByTime(100);
+      for (let i = 0; i < 20; i++) await Promise.resolve();
+    }
+  };
+
+  const runTest = ({
+    previewLauncher,
+    previewDebuggerServer,
+  }: {
+    previewLauncher: any,
+    previewDebuggerServer: any,
+    ...
+  }) =>
+    runGameplayTests({
+      project,
+      tests: [{ scope: { type: 'project' }, testName: 'Test', source: '' }],
+      previewLauncher,
+      previewDebuggerServer,
+      options: { timeoutMs: 1000, loadingTimeoutMs: 60 * 1000 },
+    });
+
+  const passedResult = {
+    testName: 'Test',
+    status: 'passed',
+    framesExecuted: 1,
+  };
+
+  it('waits longer than the test budget for a game that is loading', async () => {
+    const game = makeFakeGame(({ messageId }, sendToEditor) => {
+      sendToEditor({
+        command: 'gameplayTest.progress',
+        messageId,
+        payload: { frame: 0, isLoading: true },
+      });
+      // Silent for much longer than the test budget, like a game creating a
+      // big 3D scene.
+      setTimeout(
+        () =>
+          sendToEditor({
+            command: 'gameplayTest.result',
+            messageId,
+            payload: passedResult,
+          }),
+        30 * 1000
+      );
+    });
+
+    const resultsPromise = runTest(game);
+    await letTimePass(31 * 1000);
+    const results = await resultsPromise;
+
+    expect(results.map(result => result.status)).toEqual(['passed']);
+  });
+
+  it('gives up on a game silent for longer than the loading budget, and stops its test', async () => {
+    const game = makeFakeGame(({ messageId }, sendToEditor) => {
+      sendToEditor({
+        command: 'gameplayTest.progress',
+        messageId,
+        payload: { frame: 0, isLoading: true },
+      });
+    });
+
+    const resultsPromise = runTest(game);
+    await letTimePass(71 * 1000);
+    const results = await resultsPromise;
+
+    expect(results[0].status).toBe('error');
+    expect(results[0].errors).toEqual([
+      'No result nor progress received from the game after 70000ms while it was loading (booting, loading the assets of a scene, creating a scene or drawing its first frames) - the game may have crashed or been closed.',
+    ]);
+    expect(
+      game.sentMessages.some(message => message.command === 'gameplayTest.stop')
+    ).toBe(true);
+  });
+
+  it('gives up on a running game silent for longer than the test budget', async () => {
+    const game = makeFakeGame(({ messageId }, sendToEditor) => {
+      sendToEditor({
+        command: 'gameplayTest.progress',
+        messageId,
+        payload: { frame: 10, isLoading: false },
+      });
+    });
+
+    const resultsPromise = runTest(game);
+    await letTimePass(12 * 1000);
+    const results = await resultsPromise;
+
+    expect(results[0].errors).toEqual([
+      'No result nor progress received from the game after 11000ms - the game may have crashed or been closed.',
+    ]);
+  });
+
+  it('does not give up when the editor was frozen with the game', async () => {
+    const game = makeFakeGame(({ messageId }, sendToEditor) => {
+      sendToEditor({
+        command: 'gameplayTest.progress',
+        messageId,
+        payload: { frame: 10, isLoading: false },
+      });
+      // The game blocks the thread it shares with the editor for 20
+      // seconds: the watchdog of the editor fires late, once the game is
+      // done, right before the message of the game is received.
+      setTimeout(() => setSystemTimeMs(Date.now() + 20 * 1000), 500);
+      setTimeout(
+        () =>
+          sendToEditor({
+            command: 'gameplayTest.result',
+            messageId,
+            payload: passedResult,
+          }),
+        11500
+      );
+    });
+
+    const resultsPromise = runTest(game);
+    await letTimePass(12 * 1000);
+    const results = await resultsPromise;
+
+    expect(results.map(result => result.status)).toEqual(['passed']);
+  });
+});
 
 describe('createHiddenStallTracker', () => {
   /** A clock that can be moved forward by the test. */

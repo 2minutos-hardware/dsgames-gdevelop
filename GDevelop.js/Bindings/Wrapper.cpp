@@ -82,10 +82,13 @@
 #include <GDCore/Project/ExternalLayout.h>
 #include <GDCore/Project/Test.h>
 #include <GDCore/Project/TestsContainer.h>
+#include <GDCore/Project/NamedEasing.h>
+#include <GDCore/Project/NamedEasingsContainer.h>
 #include <GDCore/Project/FunctionFolderOrFunction.h>
 #include <GDCore/Project/InitialInstance.h>
 #include <GDCore/Project/InitialInstancesContainer.h>
 #include <GDCore/Project/Layout.h>
+#include <GDCore/Project/ProjectItemFolderOrItem.h>
 #include <GDCore/Project/LayersContainer.h>
 #include <GDCore/Project/MeasurementBaseUnit.h>
 #include <GDCore/Project/MeasurementUnitElement.h>
@@ -105,7 +108,6 @@
 #include <GDCore/Project/Variable.h>
 #include <GDCore/Project/VariablesContainer.h>
 #include <GDCore/Project/VariablesContainersList.h>
-#include <GDCore/Project/QuickCustomization.h>
 #include <GDCore/Serialization/Serializer.h>
 #include <GDCore/Serialization/SerializerElement.h>
 #include <GDCore/Serialization/BinarySerializer.h>
@@ -537,8 +539,6 @@ typedef std::vector<const gd::ObjectFolderOrObject*> VectorObjectFolderOrObject;
 typedef std::vector<const gd::PropertyFolderOrProperty*> VectorPropertyFolderOrProperty;
 typedef std::vector<const gd::FunctionFolderOrFunction*> VectorFunctionFolderOrFunction;
 typedef std::vector<gd::Screenshot> VectorScreenshot;
-typedef QuickCustomization::Visibility
-    QuickCustomization_Visibility;
 typedef CustomObjectConfiguration::EdgeAnchor
     CustomObjectConfiguration_EdgeAnchor;
 
@@ -856,6 +856,9 @@ typedef std::vector<gd::PropertyDescriptorChoice> VectorPropertyDescriptorChoice
 #define STATIC_MoveEventsBasedObject MoveEventsBasedObject
 #define STATIC_UpdateObjectNameInEventsBasedObject UpdateObjectNameInEventsBasedObject
 #define STATIC_RenameLayout RenameLayout
+#define STATIC_RenameNamedEasing RenameNamedEasing
+#define STATIC_RenameNamedEasingInEventsFunctionsExtension \
+  RenameNamedEasingInEventsFunctionsExtension
 #define STATIC_RenameExternalLayout RenameExternalLayout
 #define STATIC_RenameExternalEvents RenameExternalEvents
 #define STATIC_RenameLayerInScene RenameLayerInScene
@@ -975,6 +978,7 @@ typedef std::vector<gd::PropertyDescriptorChoice> VectorPropertyDescriptorChoice
 #define GetEventsFunctionAt GetEventsFunction
 #define GetVariantAt GetVariant
 #define GetTestAt GetTest
+#define GetNamedEasingAt GetNamedEasing
 #define GetEffectAt GetEffect
 #define GetParameterAt GetParameter
 

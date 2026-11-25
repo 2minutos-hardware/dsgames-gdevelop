@@ -30,6 +30,7 @@ import {
   selectLanguageOrLocale,
 } from '../../Utils/Language';
 import { type GamesDashboardOrderBy } from '../../GameDashboard/GamesList';
+import { isWebGL2Supported } from '../../Utils/WebGL';
 import {
   CHECK_APP_UPDATES_TIMEOUT,
   PERIODIC_APP_UPDATES_TIMEOUT,
@@ -79,6 +80,11 @@ export const loadPreferencesFromLocalStorage = (): ?PreferencesValues => {
         : 'no';
     }
 
+    // 3D rendering requires WebGL2 (the preference used to only require WebGL1).
+    if (values.use3DEditor && !isWebGL2Supported()) {
+      values.use3DEditor = false;
+    }
+
     return values;
   } catch (e) {
     return null;
@@ -115,9 +121,12 @@ export const getInitialPreferences = (): {
   isAlwaysOnTopInPreview: boolean,
   isMenuBarHiddenInPreview: boolean,
   language: string,
+  lastClaimableProductsDialogMonth: null,
+  autoDisplayClaimableProductsDialog: boolean,
   lastLaunchedVersion: void,
   newFeaturesAcknowledgements: {},
   newObjectDialogDefaultTab: any,
+  newEffectDialogDefaultTab: string,
   newProjectsDefaultFolder: any,
   newProjectsDefaultStorageProviderName: string,
   openDiagnosticReportAutomatically: boolean,
@@ -276,6 +285,14 @@ export default class PreferencesProvider extends React.Component<Props, State> {
       this
     ): any),
     // $FlowFixMe[method-unbinding]
+    getNewEffectDialogDefaultTab: (this._getNewEffectDialogDefaultTab.bind(
+      this
+    ): any),
+    // $FlowFixMe[method-unbinding]
+    setNewEffectDialogDefaultTab: (this._setNewEffectDialogDefaultTab.bind(
+      this
+    ): any),
+    // $FlowFixMe[method-unbinding]
     getShareDialogDefaultTab: (this._getShareDialogDefaultTab.bind(this): any),
     // $FlowFixMe[method-unbinding]
     setShareDialogDefaultTab: (this._setShareDialogDefaultTab.bind(this): any),
@@ -371,6 +388,14 @@ export default class PreferencesProvider extends React.Component<Props, State> {
     ): any),
     // $FlowFixMe[method-unbinding]
     setWatchProjectFolderFilesForLocalProjects: (this._setWatchProjectFolderFilesForLocalProjects.bind(
+      this
+    ): any),
+    // $FlowFixMe[method-unbinding]
+    setLastClaimableProductsDialogMonth: (this._setLastClaimableProductsDialogMonth.bind(
+      this
+    ): any),
+    // $FlowFixMe[method-unbinding]
+    setAutoDisplayClaimableProductsDialog: (this._setAutoDisplayClaimableProductsDialog.bind(
       this
     ): any),
     // $FlowFixMe[method-unbinding]
@@ -1151,6 +1176,21 @@ export default class PreferencesProvider extends React.Component<Props, State> {
     );
   }
 
+  _getNewEffectDialogDefaultTab(): any {
+    return this.state.values.newEffectDialogDefaultTab;
+  }
+
+  _setNewEffectDialogDefaultTab(
+    newEffectDialogDefaultTab: 'asset-store' | 'from-scratch'
+  ) {
+    this.setState(
+      state => ({
+        values: { ...state.values, newEffectDialogDefaultTab },
+      }),
+      () => this._persistValuesToLocalStorage(this.state)
+    );
+  }
+
   _getShareDialogDefaultTab(): any {
     return this.state.values.shareDialogDefaultTab;
   }
@@ -1248,6 +1288,32 @@ export default class PreferencesProvider extends React.Component<Props, State> {
         values: {
           ...state.values,
           watchProjectFolderFilesForLocalProjects: enable,
+        },
+      }),
+      () => this._persistValuesToLocalStorage(this.state)
+    );
+  }
+
+  _setAutoDisplayClaimableProductsDialog(
+    autoDisplayClaimableProductsDialog: boolean
+  ) {
+    this.setState(
+      state => ({
+        values: {
+          ...state.values,
+          autoDisplayClaimableProductsDialog,
+        },
+      }),
+      () => this._persistValuesToLocalStorage(this.state)
+    );
+  }
+
+  _setLastClaimableProductsDialogMonth(month: string) {
+    this.setState(
+      state => ({
+        values: {
+          ...state.values,
+          lastClaimableProductsDialogMonth: month,
         },
       }),
       () => this._persistValuesToLocalStorage(this.state)
