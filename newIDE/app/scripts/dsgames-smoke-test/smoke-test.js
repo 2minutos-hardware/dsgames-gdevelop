@@ -8,7 +8,9 @@
  *      button "Publish to DSGAMES" shows up);
  *   2. "Preview" opens the game (through the /browser_sw_preview/ service
  *      worker);
- *   3. the third party editors (Jfxr, Piskel, Yarn) load.
+ *   3. the third party editors (Jfxr, Piskel, Yarn) load;
+ *   4. "Add object" opens (GDevelop's asset store stays empty, see
+ *      src/DSGAMES/NetworkPolicy.js) and creates a Sprite from scratch.
  *
  * Every request is recorded: pages, popups, workers and service workers.
  * The test fails if any of them goes to another host than the one serving
@@ -182,6 +184,39 @@ const screenshot = (page, name) =>
     });
   }
 
+  // GDevelop's catalogs are blocked (its API never answered DSGAMES anyway,
+  // because of CORS): the asset store stays empty, and objects are created
+  // from scratch, with images imported or drawn in Piskel.
+  /** @type {string} */
+  let assetStoreState = 'not opened';
+  await step('"Add object" creates a Sprite from scratch', async () => {
+    await editor
+      .getByText('Add object')
+      .first()
+      .click();
+    await editor.locator('#asset-store-tab').waitFor({ timeout: 30 * 1000 });
+    await wait(SETTLE_MS);
+    assetStoreState = (await editor
+      .getByText('An error occurred when fetching the store content.')
+      .count())
+      ? 'opens with an error message'
+      : 'opens';
+    await screenshot(editor, '4-asset-store');
+    await editor.locator('#new-object-from-scratch-tab').click();
+    await editor.locator('#object-item-Sprite').click();
+    // The new object may open in the object editor first.
+    const objectEditor = editor.locator('#object-editor-dialog');
+    await objectEditor
+      .waitFor({ timeout: 10 * 1000 })
+      .then(() => editor.locator('#apply-button').click())
+      .catch(() => {});
+    await editor
+      .getByText('NewSprite')
+      .first()
+      .waitFor({ timeout: 30 * 1000 });
+    await screenshot(editor, '5-new-sprite');
+  });
+
   currentStep = 'end';
   await wait(SETTLE_MS);
   await browser.close();
@@ -204,6 +239,8 @@ const screenshot = (page, name) =>
     `${requests.length} requests, ${external.length} to other hosts than ${[
       ...allowedHosts,
     ].join(', ')}.`,
+    ``,
+    `Asset store (GDevelop's catalogs blocked): ${assetStoreState}.`,
     ``,
     ...failedSteps.map(({ step, error }) => `- ❌ ${step}: ${error}`),
     ...[...externalHosts].map(

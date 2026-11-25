@@ -29,6 +29,11 @@ const forbiddenPatterns = [
   /analytics\.tiktok\.com/,
   /snap\.licdn\.com/,
   /static\.hotjar\.com/,
+  /(platform|syndication)\.twitter\.com/,
+  // Not a tracker, but it tells Google who opens the editor. (Workbox's
+  // own default CDN address is left in it, unused: the smoke test checks
+  // what is actually requested.)
+  /fonts\.googleapis\.com/,
 ];
 
 /** @param {string} directory @returns {string[]} */

@@ -177,6 +177,26 @@ describe('DSGAMES fork', () => {
       ).toContain('<LocalFileResourceUploader');
     });
 
+    it('installs its network policy before anything else', () => {
+      const firstImport = readRepositoryFile('newIDE/app/src/index.js').match(
+        /^import .*$/m
+      );
+      expect(firstImport && firstImport[0]).toBe(
+        "import './DSGAMES/NetworkPolicy';"
+      );
+    });
+
+    it("serves Workbox itself, not from Google's CDN", () => {
+      const template = readRepositoryFile(
+        'newIDE/app/scripts/service-worker-template/service-worker-template.js'
+      );
+      expect(template).not.toContain('storage.googleapis.com');
+      expect(template).toContain("importScripts('WORKBOX_DIRECTORY/");
+      expect(
+        readRepositoryFile('newIDE/app/scripts/make-service-worker.js')
+      ).toContain('copyWorkboxLibraries');
+    });
+
     it('downloads the libGD.js pinned for this version', () => {
       expect(readRepositoryFile('newIDE/app/scripts/import-libGD.js')).toMatch(
         /DSGAMES_PINNED_UPSTREAM_COMMIT =\s*'[0-9a-f]{40}'/
@@ -188,6 +208,10 @@ describe('DSGAMES fork', () => {
     // upstream's version back.
     it.each([
       'Extensions/Multiplayer/JsExtension.js',
+      'newIDE/app/.gitignore',
+      'newIDE/app/scripts/make-service-worker.js',
+      'newIDE/app/scripts/service-worker-template/service-worker-template.js',
+      'newIDE/app/src/index.js',
       'newIDE/app/public/index.html',
       'newIDE/app/src/BrowserApp.js',
       'newIDE/app/src/ExportAndShare/BrowserExporters/BrowserFileSystem.js',

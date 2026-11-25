@@ -113,4 +113,40 @@ const buildSW = () => {
     });
 };
 
-cleanBuildFiles().then(() => buildSW());
+/**
+ * DSGAMES: copy Workbox next to the service worker, which loads it from there
+ * instead of Google's CDN (see service-worker-template.js).
+ */
+const useLocalWorkbox = () =>
+  workboxBuild
+    .copyWorkboxLibraries('../public/external')
+    .then(workboxDirectoryName => {
+      if (
+        !replaceInFile(
+          '../public/service-worker.js',
+          /WORKBOX_DIRECTORY/g,
+          `external/${workboxDirectoryName}`
+        )
+      ) {
+        console.error(
+          'Error while trying to use the local Workbox in public/service-worker.js.'
+        );
+        shell.exit(1);
+      }
+      // Never used here, and it would send analytics to Google.
+      shell.rm(
+        '-f',
+        path.join(
+          '../public/external',
+          workboxDirectoryName,
+          'workbox-offline-ga.*'
+        )
+      );
+      console.log(
+        `ℹ️ Workbox copied to public/external/${workboxDirectoryName}.`
+      );
+    });
+
+cleanBuildFiles()
+  .then(() => buildSW())
+  .then(() => useLocalWorkbox());
