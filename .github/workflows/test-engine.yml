@@ -1,0 +1,141 @@
+# DSGAMES fork: tests the game engine (GDJS) and the web editor (newIDE/app)
+# on every pull request, above all the GDevelop updates opened by
+# scripts/dsgames-update-gdevelop.sh. Besides GDevelop's own tests, it runs
+# ours: newIDE/app/src/DSGAMES (our changes are still there),
+# Extensions/DSGAMES/tests (the DSGAMES extension) and
+# newIDE/app/scripts/check-dsgames-privacy.js (no analytics in the editor).
+#
+# The built editor is kept for 7 days as the "dsgames-editor" artifact, so
+# the production server (3 GB of memory) doesn't have to build it. Deploying
+# it stays manual.
+#
+# This workflow has no secrets and its token can only read the repository.
+# Actions are pinned to a commit: only GitHub's own actions are allowed.
+
+name: Test the engine and the editor
+
+on:
+  pull_request:
+    branches: [dsgames-fork]
+  push:
+    branches: [dsgames-fork]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-engine-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 22
+
+jobs:
+  engine:
+    name: Game engine (GDJS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            GDJS/package-lock.json
+            GDJS/tests/package-lock.json
+
+      - name: Install
+        run: |
+          (cd GDJS && npm ci --no-audit --no-fund)
+          (cd GDJS/tests && npm ci --no-audit --no-fund)
+
+      - name: Check types
+        working-directory: GDJS
+        run: npm run check-types
+
+      - name: Build
+        working-directory: GDJS
+        run: npm run build
+
+      # GDevelop's tests, plus ours (see karma.dsgames.conf.js).
+      - name: Test
+        working-directory: GDJS/tests
+        run: npx karma start karma.dsgames.conf.js --browsers ChromeHeadlessNoSandbox --single-run
+
+  editor-checks:
+    name: Editor types and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            newIDE/app/package-lock.json
+            GDJS/package-lock.json
+
+      # Also downloads the libGD.js pinned in scripts/import-libGD.js.
+      # `npm install`, like GDevelop's CI: newIDE/app/package-lock.json isn't
+      # always in sync with package.json, which `npm ci` refuses.
+      - name: Install
+        working-directory: newIDE/app
+        run: npm install --no-audit --no-fund
+
+      - name: Check types (Flow)
+        working-directory: newIDE/app
+        run: npm run flow
+
+      - name: Test
+        working-directory: newIDE/app
+        run: npm test -- --watchAll=false
+
+  editor-build:
+    name: Editor build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            newIDE/app/package-lock.json
+            GDJS/package-lock.json
+
+      - name: Install
+        working-directory: newIDE/app
+        run: npm install --no-audit --no-fund
+
+      - name: Build
+        working-directory: newIDE/app
+        run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+          # Same as the builds deployed so far.
+          GENERATE_SOURCEMAP: "false"
+          # Like GDevelop's own builds: lint warnings don't fail the build.
+          CI: "false"
+
+      - name: Check there are no analytics in the editor
+        working-directory: newIDE/app
+        run: node scripts/check-dsgames-privacy.js
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dsgames-editor
+          path: newIDE/app/build/
+          retention-days: 7

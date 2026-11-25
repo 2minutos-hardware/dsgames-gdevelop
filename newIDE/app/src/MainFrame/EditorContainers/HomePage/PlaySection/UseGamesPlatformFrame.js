@@ -8,14 +8,11 @@ import { generateCustomAuthToken } from '../../../../Utils/GDevelopServices/User
 import PublicProfileContext from '../../../../Profile/PublicProfileContext';
 import RouterContext from '../../../RouterContext';
 import { retryIfFailed } from '../../../../Utils/RetryIfFailed';
-import optionalRequire from '../../../../Utils/OptionalRequire';
-import { isNativeMobileApp } from '../../../../Utils/Platform';
 import Window from '../../../../Utils/Window';
 import { delay } from '../../../../Utils/Delay';
 import { useStableUpToDateRef } from '../../../../Utils/UseStableUpToDateCallback';
 import { useSoftKeyboardBottomOffset } from '../../../../UI/MobileSoftKeyboard';
 import { homepageMobileMenuHeight } from '../HomePageMenuBar';
-const electron = optionalRequire('electron');
 
 // If the iframe is displaying a game, it will continue playing its audio as long as the iframe
 // exists, even if it's not visible. So we don't keep it alive for too long.
@@ -25,47 +22,11 @@ let gdevelopGamesMonetization: {|
   initialize: (rootElement: HTMLElement) => Promise<void>,
   sendCommand: (command: any) => Promise<void>,
 |} | null = null;
-let gdevelopGamesMonetizationPromise: Promise<void> | null = null;
 
-const ensureGDevelopGamesMonetizationReady = async () => {
-  if (!!electron || isNativeMobileApp()) {
-    // Not supported on desktop or mobile.
-    return;
-  }
-  if (gdevelopGamesMonetization) {
-    // Already loaded.
-    return;
-  }
-  if (gdevelopGamesMonetizationPromise) {
-    // Being loaded.
-    return gdevelopGamesMonetizationPromise;
-  }
-
-  gdevelopGamesMonetizationPromise = (async () => {
-    try {
-      // Load the library. If it fails, retry or throw so we can retry later.
-      const module = await retryIfFailed(
-        { times: 2 },
-        async () =>
-          // $FlowFixMe[incompatible-type] - Remote script cannot be found.
-          // $FlowFixMe[cannot-resolve-module]
-          (await import(/* webpackIgnore: true */ 'https://resources.gdevelop.io/a/ggm-web.js'))
-            .default
-      );
-      if (module) {
-        await module.initialize(document.body);
-        gdevelopGamesMonetization = module;
-      }
-    } catch (error) {
-      console.error('Error while loading GDevelop Games Monetization:', error);
-    } finally {
-      // If loading fails, retry later.
-      gdevelopGamesMonetizationPromise = null;
-    }
-  })();
-
-  return gdevelopGamesMonetizationPromise;
-};
+// DSGAMES: never load "GDevelop Games Monetization", a remote script
+// (resources.gdevelop.io/a/ggm-web.js) for ads on gd.games - see
+// Utils/Analytics/EventSender.js for the analytics.
+const ensureGDevelopGamesMonetizationReady = async () => {};
 
 /**
  * Generate a custom token for the user (or `null` if the user is not connected),

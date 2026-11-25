@@ -1,0 +1,20 @@
+# DSGAMES fork: see scripts/dsgames-update-gdevelop.sh. Installed on the
+# DSGAMES server as a systemd user unit:
+#   install -m 755 scripts/dsgames-update-gdevelop.sh ~/.local/bin/dsgames-update-gdevelop
+#   cp scripts/systemd/dsgames-gdevelop-update.* ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now dsgames-gdevelop-update.timer
+# (a copy in ~/.local/bin: the script checks out branches of its own clone,
+# it must not run from a file that changes under it.)
+[Unit]
+Description=Propose the latest GDevelop release to dsgames-gdevelop
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/dsgames-update-gdevelop
+# Only git, no build: keep it out of the way of DSGAMES.
+Nice=10
+IOSchedulingClass=idle
+MemoryMax=600M
+TimeoutStartSec=1h

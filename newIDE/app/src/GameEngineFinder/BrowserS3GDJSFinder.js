@@ -61,7 +61,8 @@ export const findGDJS = (
     Window.isDev() && window.location.hostname === 'localhost'
       ? // Served by `watch-serve-GDJS-runtime.js` when running the IDE locally.
         `http://localhost:5002`
-      : new URL('GDJS', document.baseURI).href;
+      : // DSGAMES: baseURI is never null in a page, the fallback is for Flow.
+        new URL('GDJS', document.baseURI || window.location.href).href;
 
   return Promise.all(
     filesToDownload[fileSet].map(relativeFilePath => {

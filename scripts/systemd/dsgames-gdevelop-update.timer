@@ -1,0 +1,11 @@
+# DSGAMES fork: see dsgames-gdevelop-update.service.
+[Unit]
+Description=Weekly check for a new GDevelop release
+
+[Timer]
+OnCalendar=Mon *-*-* 09:00:00
+RandomizedDelaySec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
